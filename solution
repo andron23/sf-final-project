@@ -1,7 +1,12 @@
 Задание 1
 select ...
 Выводы: ...
-Задание 2
+Задание 2.
+Расчет метрик относительно баланса пользователя:
+сколько в среднем коинов списывает 1 человек
+сколько в среднем коинов начисляется 1 человеку
+какой средний баланс среди всех пользователей
+какой медианный баланс среди всех пользователей
 with a as (
 	select 
 		user_id,
@@ -19,10 +24,172 @@ with a as (
 		group by user_id )
 select  avg(spisanie) as avg_spisanie, avg(nachislenie) as avg_nachislenie, avg(balance) as avg_balance, mode() within group (ORDER BY balance) as median_balance
 from a
-Выводы:можно сделать вывод, что в среднем один пользователь мало списывает коины по сравнению с со средней величиной пополнения и средней величиной баланса, что подтверждает гипотезу о неэффективности использования коинов за задачи
-Задание 3
-select ...
-Выводы: ...
+Выводы:можно сделать вывод, что в среднем один пользователь в малом количестве списывает коины (32) по сравнению с со средней величиной пополнения (306) и
+средней величиной баланса (275), т.е. пользователь получает больше бонусов и нет заинтересованности о том, на что их можно потратить.
+При сравнении среднего (275) и медианного (53) значения баланса можно сделать вывод, что мы имеем дело с правосторонним  ассиметричным распределением 
+и у большинства пользователей баланс меньше среднего.
+
+Задание 3.Расчет метрик активности пользователей на платформе
+3.1 Сколько в среднем пользователь решает задач
+with Solve_Task  as (
+		select 
+			user_id,
+			problem_id 
+		from codesubmit c 
+		union 
+		select 
+			user_id,
+			problem_id 
+		from coderun c2 
+	),
+	Users_Task as (
+		select
+			user_id,
+			count(distinct problem_id) as cnt
+		from Solve_Task  
+		group by user_id
+	)
+	select 
+		round(avg(cnt)) as avgSolTask
+	from Users_Task
+Выводы: В среднем каждый пользователь решает по 9 задач.
+
+3.2 Сколько в среднем пользователь проходит тестов
+with TestSol as (
+	select 
+		user_id, 
+		count(distinct test_id) as cnt_Test
+	from teststart t 
+	group by user_id
+    )
+    select 
+        round(avg(cnt_Test)) as avgTestSolv
+    from TestSol
+    Выводы: В среднем каждый пользователь решает по 2 теста.
+    
+ 3.3 Сколько в среднем пользователь делает попыток для решения 1 задачи
+ with Try_Task_Solve as (
+        select 
+            user_id,
+            problem_id 
+        from 
+            codesubmit c 
+        union all
+        select 
+            user_id,
+            problem_id 
+        from 
+            coderun c2 
+    ),
+   CntTryTask as (
+        select 	
+            user_id,
+            problem_id,
+            count(problem_id) as cnt
+        from 
+            Try_Task_Solve 
+        group by 
+            user_id, problem_id
+    )
+    select 
+        round(avg(cnt)) as avg_tryTask_solve
+    from  CntTryTask
+    Выводы: В среднем каждый пользователь делает по 9 попыток для решения задачи.
+   
+   3.4 Сколько в среднем пользователь делает попыток для прохождения 1 теста
+  with Try_Solve_Test as (
+        select 	
+            user_id,
+            test_id,
+            count(test_id)
+        from 
+            teststart
+        group by 
+            user_id, test_id
+    )
+    select 
+        round(avg(count)) as avg_try_solve_test
+    from Try_Solve_Test
+    
+    Выводы: В среднем каждый пользователь делает по 1 попыток для прохождения.
+ 3.5 Какая доля от общего числа пользователей решала хотя бы одну задачу или начинала проходить хотя бы один тест
+    with countAllUsers as (
+	select
+		count(distinct id) as cnt
+	from users
+),
+countUsersTryTask as (
+	select
+		count(distinct user_id) as cnt
+	from codesubmit
+),
+countUsersTryTest as (
+	select
+		count(distinct user_id) as cnt
+	from teststart
+)
+select
+	B.cnt::numeric/A.cnt as ratio_task
+	E.cnt::numeric/A.cnt as ratio_test
+from countAllUsers A,countUsersTryTask  B, countUsersTryTest E
+Выводы:  Доля пользователей, которая решала хотя бы одну задачу, составила 0,31, тестов - 0,44
+
+3.6 Нужно вывести 1 запросом, чтобы было наглядно:
+Сколько человек открывало задачи за кодкоины
+Сколько человек открывало тесты за кодкоины
+Сколько человек открывало подсказки за кодкоины
+Сколько человек открывало решения за кодкоины
+Сколько подсказок/тестов/задач/решений было открыто за кодкоины (если задача/... открыта разными людьми, то это считаем разными фактами открытия)
+Сколько человек покупало хотя бы что-то из вышеперечисленного
+Сколько человек всего имеют хотя бы 1 транзакцию, пусть даже только начисление
+ with user_transaction as (
+        select 
+            count(distinct user_id) as user_transaction
+        from "transaction" t 
+    ),
+    User_Type as (
+        select 
+            user_id, 
+            type_id,
+            count(value) as cnt
+        from  "transaction" t 
+        where  value > 0   and type_id in (23,27,24,25)
+        group by 
+            user_id, 
+            type_id
+    ),
+   users_who_buy  as (
+        select 
+            sum(case when type_id = 23 then 1 else  0 end) as count_users_who_buy_task,
+            sum(case when type_id = 27 then 1 else 0 end) as count_users_who_buy_test,
+            sum(case when type_id = 24  then 1 else 0 end) as count_users_who_buy_tip,
+            sum(case when type_id = 25 then 1  else  0 end)  as count_users_who_buy_sol,
+            count(distinct user_id) as users_buy_smth
+        from  User_Type 
+    ),
+    all_users_who_open_for_coins as (
+        select 
+            sum(case  when type_id = 23  then  cnt else  0 end) as users_opens_for_coins_task,
+            sum(case  when type_id = 27 then   cnt else  0 end) as users_opens_for_coins_test,
+            sum(case  when type_id = 24 then  cnt else 0 end ) as users_opens_for_coins_tip,
+            sum(case  when type_id = 25 then  cnt else  0 end) as users_opens_for_coins_sol
+        from  User_Type
+            )
+    select 
+        B.users_opens_for_coins_task,
+        B.users_opens_for_coins_test,
+        B.users_opens_for_coins_tip,
+        B.all_users_opens_for_coins_sol,
+        A.users_buy_smth,
+        C.user_transaction
+    from 
+        users_who_buy A, 
+        all_users_who open_for_coins B, 
+        user_transaction C
+вывод: По полученным метрикам можно сделать вывод, что пользователь предпочитает за коины покупать задачи ( 1589), нежели тесты (844).
+
+
+
 Дополнительное задание
 Мне кажется ... Для этого я предлагаю посчитать ..., потому что:
 •	причина 1
@@ -35,9 +202,32 @@ select ...
 Я считаю, что вам нужно сделать так-то ..., потому что ..... А еще, беря во внимание, ...., нужно сделать так-то ...
 Дополнительное задание 2
 Для выгрузки данных используем SQL-запрос:
-select ...
-Для загрузки данных, построения графика, ..., используем такой код:
-def foo(a, b):
- # не забудьте писать комментарии в коде, чтобы преподаватель понимал, что вы делаете
- ...
-Выводы: Рекомендую проводить релизы в такой-то день ..., в такое-то время ..., потому что ....
+select * from coderun
+Select * from codesubmit
+select* from teststar
+Для загрузки данных, построения графика используем следующий код:
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+import glob, os 
+from datetime import datetime
+import locale
+locale.setlocale(locale.LC_ALL, "ru")
+path = r'D:\сквозной проект\19-06-2022_15-56-05'
+all_files = glob.glob(os.path.join(path, "*.csv"))
+df_from_each_file = (pd.read_csv(f) for f in all_files)
+df  = pd.concat(df_from_each_file, ignore_index = True)
+df['date_1'] = pd.to_datetime(df['created_at'])
+df ['weekday'] = df['date_1'].dt.strftime("%A")
+plot_sum = df['weekday'].value_counts().plot(kind ='bar',title='распределения посещений по дням недели')
+df['date_2'] = pd.to_datetime(df['created_at'])
+df ['time'] = df['date_2'].dt.strftime("%H")
+plot_sum = df['time'].value_counts().plot(kind ='bar',title='распределения посещений по времени суток')
+
+ 
+Выводы: Рекомендую проводить релизы в такой-то день четверг, в период 13.00 - 14.00,
+потому что в данный интервал времени наблюдается наибольшее количество пользователей.
+
+
+
+
