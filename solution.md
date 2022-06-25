@@ -773,7 +773,7 @@
 - после 60 дней = 13,88%
 - после 90 дней = 49,41%
 
-**Четвертая метрик**а показывает сколько в среднем находится на платформе пользователь, купивший codecoin за рубли.
+**Четвертая метрика** показывает сколько в среднем находится на платформе пользователь, купивший codecoin за рубли.
 В результате данная метрика показывает, что в среднем такие пользователи находятся на платформе 60,74 дней.  
 Таким образом данная метрика и результат средней покупки codecoin за рубли из второй метрики дает нам минимальное значение стоимости подписки, которое пользователи косвенно платят в данный момент.
 Минимальная стоимость подписки равняется: 
@@ -781,4 +781,124 @@
 - 33,04 рубля в неделю
 - 138,3 рубля в месяц
 
+**Итоговые выводы по смене модели монетизации:**  
 
+Я считаю, что на основе, полученных по результатам исследования, даныых необходимо закладывать в подписку временные промежутки в пределах недели и месяца.
+Неделя оптимально подойдет для подготовки к собеседованиям или повторению определенных блоков знаний. 
+Месяц подойдет для более основательной подготовки и постоянного саморазвития, а при условии автопродления может удержать пользователя на более длительный срок, что в будущем даст больше данных для принятия решений о более длительной подписке.  
+
+Минимальная стоимость недельной подписки должна составлять 33,04 рубля, а месячной 138,3 рубля, что было получено только на основе трат пользователей платформы и не учитывает других финансовых показателей платформы.
+Именно поэтому указываю только **минимальную** стоимость на основе данных.  
+
+На основе полученных данных я считаю, что в бесплатном функционале стоит оставить 5 попыток на решение задач(в среднем затрачивается примерно 9 попыток на задачу), 1 попытку на решение теста(в среднем затрачивается чуть больше 1 попытки).
+Подсказки и решения следует поместить в платную подписку, т.к. по сравнению с количеством открытий задач(1589 раз) или тестов(844) за codecoins, открытие подсказок(117) и решений(423) существенно ниже. Но при этом данный функционал может привлекать людей в платную подписку.
+Топовые задачи от компаний и задачи с собеседований должны быть в платной подписке, что так же повысит интерес к ней.
+
+**Дополнительное задание 2**
+
+Для выгрузки данных используем SQL-запрос:
+
+    with unionTables as (
+        select 
+            created_at 
+        from 
+            teststart t 
+        union
+        select 
+            created_at 
+        from 
+            coderun c  
+        union
+        select 
+            created_at 
+        from 
+            codesubmit c2  
+                        )
+    select 
+        created_at,
+        to_char(created_at, 'HH24:00') as hour,
+        to_char(created_at, 'Day') as weekday,
+        extract(isodow from created_at) as weekdayNumb
+    from unionTables
+
+Для загрузки данных, построения графика используем такой код
+
+    import pandas as pd
+    import glob
+    import matplotlib.pyplot as plt
+    
+    # импортируем данные SQL
+    folderName = 'C:\py_ptojects\SF_сквозной_проект'
+    all_files = glob.glob(folderName + '/*.csv')
+    df = [pd.read_csv(i, sep=';', index_col=None, header=0) for i in all_files]
+    df = df[0]
+    
+    # Обрабатываем датафреймы(ДФ) для создания графиков и диаграмм
+    # ДФ для построения графика активности по часам
+    dfGroupByHours = df[['created_at',
+                         'hour']].groupby(['hour']).count().reset_index()
+    # ДФ для построения гистограммы активности по неделям
+    dfGroupByWeekdays = df[['created_at', 'weekday', 'weekdaynumb']].groupby(
+        ['weekdaynumb', 'weekday']).count().reset_index()
+    dfGroupByWeekdays = dfGroupByWeekdays[['weekday', 'created_at']]
+    #  ДФ для построения гистограммы активности по неделям и часам
+    dfGroupByHoursWeekdays = df[['created_at',
+                                 'weekdaynumb',
+                                 'hour']].groupby(
+                                                ['hour',
+                                                'weekdaynumb']
+                                                ).count().reset_index()
+    dfGroupByHoursWeekdays = dfGroupByHoursWeekdays.pivot(
+        index='hour',
+        columns='weekdaynumb',
+        values='created_at').reset_index()
+    dfGroupByHoursWeekdays.columns = ['Hour', 'Monday',
+                                      'Tuesday', 'Wednesday',
+                                      'Thursday', 'Friday',
+                                      'Saturday', 'Sunday'
+                                      ]
+    # Построение графиков и гистограмм
+    #  График активности по времени суток
+    plt.figure()
+    plt.subplots_adjust(hspace=0.4, bottom=0.063, top=0.946)
+    xDfGroupByHours = dfGroupByHours['hour']
+    yDfGroupByHours = dfGroupByHours['created_at']
+    plt.subplot(2, 1, 1)
+    plt.title('Number of visitors per time frame')
+    plt.xlabel('Hours')
+    plt.ylabel('Visitors')
+    plt.plot(xDfGroupByHours, yDfGroupByHours)
+    plt.xticks(rotation=90)
+    for i in range(len(xDfGroupByHours)):
+        plt.text(i,
+                 yDfGroupByHours[i],
+                 yDfGroupByHours[i],
+                 ha='center',
+                 va='bottom')
+    # Гистограмма активности по дням недели
+    plt.subplot(2, 1, 2)
+    xdfGroupByWeekdays = dfGroupByWeekdays['weekday']
+    ydfGroupByWeekdays = dfGroupByWeekdays['created_at']
+    plt.title('Number of visitors per weekday')
+    plt.xlabel('Weekdays')
+    plt.ylabel('Visitors')
+    plt.bar(xdfGroupByWeekdays,
+            ydfGroupByWeekdays,
+            color=['#76BA99', '#ADCF9F', '#CED89E', '#FFDCAE'])
+    for i in range(len(xdfGroupByWeekdays)):
+        plt.text(i,
+                 ydfGroupByWeekdays[i],
+                 ydfGroupByWeekdays[i],
+                 ha='center',
+                 va='top')
+    #  Гистограмма активности по дням недели и часам
+    dfGroupByHoursWeekdays.plot.bar(
+        stacked=True,
+        title='Number of visitors per time frame and weekday')
+    
+    plt.show()  
+
+**Выводы:**  
+Если рассматривать данные по дням недели, то за период наблюдений чаще всего люди проявляют активность по четвергам (13767 взаимодействий с платформой) и по средам (13593), реже всего по субботам (9392 взаимодействий с платформой) и по воскресеньям (9475).  
+В разрезе времени суток больше задач и тестов решают с 13:00 до 14:00(6017 взаимодействий с платформой). Меньше всего задач решают с 2:00 до 3:00(288 взаимодействий).   
+В среднем основная активность приходится на будние дни с 6:00 до 22:00 По результатам исследования рекомендую проводить релизы по воскресеньям с 1:00 до 4:00, т. к. в данное время наблюдается самая низкая активность на платформе.
