@@ -357,4 +357,79 @@ group by date_1
 2. За успехи на платформе (решение 5 задач, каждый день активность на платформе и т.д.)
 Но очень важный нюанс, кодкоины можно использовать для покупки доп подсказок и решения (при покупки подписки), а также, чтобы кодкоины работали как некий кэшбек. То есть при покупки подписок, например 15-20% можно было бы оплатить кодкоинами. Таким образом у пользователей останется азарт на решения задач, но при этом увеличиться монетизация сайта. Что касается более долгих подписок на 2-6 месяцев, стоимость должна варьироваться от 300-800 руб за месяц. При этом я предлагаю на летний период стоимость подписки уменьшить (проводить акции), так как активность летом очень сильно падает.
 
+#Задачи СТО
+код sql:
 
+select
+	table_coderun.day_1 as day_1,
+	table_coderun.part_of_day as part_of_day,
+	table_coderun.cnt_of_activity+table_test_start.cnt_of_activity+table_codesubmit.cnt_of_activity as cnt_of_activity
+from
+	(select
+		count(user_id) as cnt_of_activity, 
+		day_1,
+		part_of_day
+	from
+			(select
+				user_id, 
+				date_part('hour', created_at) as part_of_day,
+				to_char(created_at, 'day') as day_1
+			from 
+				coderun) as t1
+	group by day_1, part_of_day) as table_coderun
+full outer join 
+	(select
+		count(user_id) as cnt_of_activity, 
+		day_1,
+		part_of_day
+	from
+			(select
+				user_id, 
+				date_part('hour', created_at) as part_of_day,
+				to_char(created_at, 'day') as day_1
+			from 
+				teststart) as t1
+	group by day_1, part_of_day) as table_test_start
+on 
+	table_coderun.day_1=table_test_start.day_1
+	and table_test_start.part_of_day=table_coderun.part_of_day
+full outer join
+	(select
+		count(user_id) as cnt_of_activity, 
+		day_1,
+		part_of_day
+	from
+			(select
+				user_id, 
+				date_part('hour', created_at) as part_of_day,
+				to_char(created_at, 'day') as day_1
+			from 
+				codesubmit) as t1
+	group by day_1, part_of_day) as table_codesubmit
+on table_coderun.day_1=table_codesubmit.day_1
+	and table_codesubmit.part_of_day=table_coderun.part_of_day
+
+код питон:
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("C:\\pyProject\\123\\skvoz_project\\sto.csv", skipinitialspace=True)
+pd.set_option("display.max.columns", None)
+
+
+df_0=df.drop('day_1', axis=1)
+df_0 = df_0.groupby(by=['part_of_day']).sum()
+print(df_0.head())
+at = df_0.plot()
+at.set_ylabel('activity_of_users')
+plt.show()
+
+df_1=df.drop('part_of_day', axis=1)
+df_1 = df_1.groupby(by=['day_1']).sum()
+print(df_1.head())
+ax = df_1.plot(kind = 'bar')
+ax.set_ylabel('activity_of_users')
+plt.show()
+
+Вывод: рекомендую проводить релизы в среду и четверг с 10:00 до 15:00, так как в это время наблюдается наибольшая активность со стороны пользователей.
