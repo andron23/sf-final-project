@@ -28,6 +28,7 @@ from balance_table
 
 # ЗАДАНИЕ 3
 **Задание 3.1**
+
 •	Сколько в среднем пользователь решает задач
 
 with a as (
@@ -69,6 +70,7 @@ from b
     from a
 
 ОТВЕТ 1,68
+
 **Задание 3.3**
 
 Сколько в среднем пользователь делает попыток для решения 1 задачи
@@ -85,7 +87,8 @@ avg (cnt) as avg_problemeffort
 from a 
 
 **Задание 3.4**
-Сколько в среднем пользователь делает попыток для прохождения 1 теста
+
+. Сколько в среднем пользователь делает попыток для прохождения 1 теста
 
 with a as (
         select 	
@@ -102,11 +105,14 @@ with a as (
     from 
         a
 ОТВЕТ 1.26
+
 **Задача 3.5**
+
 Какая доля от общего числа пользователей решала хотя бы одну задачу или начинала проходить хотя бы один тест
 a  -  считаем всех пользователей 
 b – пользователи, решающие хотя бы одну задачу
 с – пользователи, начинающие проходить хоть 1 тест
+
         with countAllUsers as (
 	select
 		count(distinct id) as cnt
@@ -128,7 +134,7 @@ select
 from countAllUsers A,countUsersTryTask  B, countUsersTryTest E
 
 
-Выводы:  Доля пользователей, которая решала хотя бы одну задачу, составила 0,31, тестов - 0,44
+**Выводы:**  Доля пользователей, которая решала хотя бы одну задачу, составила 0,31, тестов - 0,44
 
 Плюс еще информация по покупкам материалов на платформе за кодкоины - эти 6 чисел нужно вывести 1 запросом, чтобы было наглядно:
 •	Сколько человек открывало задачи за кодкоины
@@ -138,6 +144,7 @@ from countAllUsers A,countUsersTryTask  B, countUsersTryTest E
 •	Сколько подсказок/тестов/задач/решений было открыто за кодкоины (если задача/... открыта разными людьми, то это считаем разными фактами открытия)
 •	Сколько человек покупало хотя бы что-то из вышеперечисленного
 •	Сколько человек всего имеют хотя бы 1 транзакцию, пусть даже только начисление
+
 with users_with_transactions as (
         select 
             count(distinct user_id) as users_with_transactions
@@ -208,6 +215,56 @@ with users_with_transactions as (
         users_buying_with_coins A, 
         all_openings_for_coins B, 
         users_with_transactions C
+	
+# Дополнительное задание 2
+
+select table_coderun.weekday as weekday,
+	table_coderun.dayhour as dayhour,
+	table_coderun.cnt_of_activity+table_test_start.cnt_of_activity+table_codesubmit.cnt_of_activity as cnt_of_activity
+from
+	(select
+		count(user_id) as cnt_of_activity, 
+		weekday,
+		dayhour 
+	from
+			(select
+				user_id, 
+				to_char(created_at, 'HH24:00') as dayhour,
+				to_char( created_at, 'day') as weekday
+			from 
+				coderun) as t1
+	group by weekday, dayhour) as table_coderun
+full outer join 
+	(select
+		count(user_id) as cnt_of_activity, 
+		weekday,
+		dayhour
+	from
+			(select
+				user_id, 
+				to_char(created_at, 'HH24:00') as dayhour,
+				to_char(created_at, 'day') as weekday
+			from 
+				teststart) as t1
+	group by weekday, dayhour) as table_test_start
+on 
+	table_coderun.weekday=table_test_start.weekday
+	and table_test_start.dayhour=table_coderun.dayhour
+full outer join
+	(select
+		count(user_id) as cnt_of_activity, 
+		weekday,
+		dayhour
+	from
+			(select
+				user_id, 
+				 to_char(created_at, 'HH24:00') as dayhour,
+				to_char(created_at, 'day') as weekday
+			from 
+				codesubmit) as t1
+	group by weekday, dayhour) as table_codesubmit
+on table_coderun.weekday=table_codesubmit.weekday
+	and table_codesubmit.dayhour=table_coderun.dayhour
 
 
 
