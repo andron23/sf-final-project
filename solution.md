@@ -148,3 +148,93 @@ select count(distinct user_id) as cnt_people
 	from "transaction" t 
    where type_id is not null
 ```
+---
+### **Дополнительное задание №1**
+Мне кажется в качестве дополнительных метрик подойдут:
++ 1 метрика - **MAU (monthly active users)** <p>Данная метрика показывает количество уникальных клиентов, проявляющих активность в течение месяца</p>
+
+```sql
+with mau as(   
+	select count(distinct(user_id)) as cnt, 
+		   to_char(entry_at, 'Month') as mon 
+		from userentry
+	   group by mon
+)
+select avg(cnt) as mau 
+	from mau
+```
++ 2 метрика - **CR (conversation rate)** <p>Данная метрика
+вычисляет коэффициент конверсии, который показывает отношение
+числа посетителей сайта, <br>выполнивших на нем какие-то действия 
+(в нашем случае покупки), к общему числу посетителей.
+<br>Результат представлен в %.</p>
+
+```sql
+with view as(   
+	select count(distinct(user_id)) as cnt, 
+		   to_char(entry_at, 'YYYY-MON') as dt
+		from userentry
+	   group by dt
+)
+select a.dt, round(b.cn / a.cnt :: numeric * 100, 2) as cr
+	from view a 
+	join (select count(distinct user_id) as cn, 
+	             to_char(created_at, 'YYYY-MON') as dt
+		      from "transaction"                             
+		     where type_id in (1, 23, 24, 25, 26, 27, 28, 30)
+	         group by dt									 
+	         order by dt) b 
+        on (a.dt = b.dt)
+```
++ 3 метрика - **Наиболее популярный стек технологий среди пользователей платформы**.<p>
+Данная метрика показывает количество людей использующих Sql и Python одновременно, 
+а также по отдельности.
+<br>(Sql и Python, представленный стек технологий на платформе на данный момент).
+
+```sql
+--Количество пользователей, которые используют sql и python в решении задач одновременно--
+
+select count(distinct a.user_id) 
+	from (select user_id
+		      from "language" l
+	          join coderun c
+		          on (l.id = c.language_id)
+	         where l."name" = 'SQL') a  
+    join (select user_id
+	          from "language" l
+	          join coderun c
+		          on (l.id = c.language_id)
+	         where l."name" = 'Python') b 
+	    on (a.user_id = b.user_id)
+```
+```sql
+--Количество пользователей, использующих sql, а также количество пользователей, использующих python--
+
+select count(distinct case when name = 'SQL' then user_id end) as sql_cnt,
+       count(distinct case when name = 'Python' then user_id end) as python_cnt 
+	from "language" l 
+	join coderun c 
+		on (l.id = c.language_id)
+```
+
+#### **Итоговые выводы по смене модели монетизации**
+> Я считаю, что для вашей компании подойдут несколько моделей монетизации:
+>> 1. Freemium. <br>Суть данной модели заключается в бесплатном предоставлении пробной (базовой) версии продукта, <br>за дальнейшее использование (расширенный функционал) потребитель вносит плату. 
+<br>Данный вариант интересен тем, что пользователь сможет протестировать функционал платформы и 
+<br>в дальнейшем приобрести полный доступ ко всем продуктам.
+<br>
+<br> 2. Subscribe.
+<br>Subscribe в качестве модели монетизации будет также рентабельна, 
+потому что пользователь сможет <br>небольшими платежами вносить ежемесячную плату за подписку, 
+что будет положительно влиять <br>на прибыль компании, из-за уменьшения оттока пользователей,
+отказывающихся оплачивать <br>полную стоимость продукта сразу.
+<br>
+<br> Дополнение.
+<br>Учитывая, что платформа активно развивается, в качестве совета ребятам из IT Resume, 
+<br>я бы предложил в дальнейшем расширять стек предлагаемых технологий, чтобы развивать 
+<br>коммьюнити платформы. Это будет способствовать узнаваемости компании и возможности 
+<br>выхода на новые рынки.
+
+<br>
+
+---
