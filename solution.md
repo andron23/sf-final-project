@@ -331,5 +331,7 @@ foo_3()
 ```
 ---
 ![](graph_1.png)
+<br>
 ![](graph_2.png)
+<br>
 ![](graph_3.png)
