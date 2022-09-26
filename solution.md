@@ -106,22 +106,26 @@ with a as (
       select 
          user_id,
          problem_id 
-         from codesubmit c 
+      from 
+	 codesubmit c 
       union 
       select 
           user_id,
           problem_id 
           from coderun c2 ),
 b as (
-select
-user_id,
-count(distinct problem_id) as cnt
-from a
-group by user_id
+      select
+          user_id,
+          count(distinct problem_id) as cnt
+      from 
+	  a
+      group by 
+	  user_id
 )
 select 
-round(avg(cnt),2) as AvgProblemSolved
-from b
+       round(avg(cnt),2) as AvgProblemSolved
+from 
+       b
 
 ОТВЕТ 9.18
 
@@ -133,12 +137,15 @@ from b
 	select 
 		user_id, 
 		count(distinct test_id) as cnt
-	from teststart t 
-	group by user_id
+	from 
+	        teststart t 
+	group by 
+	        user_id
     )
     select 
         round(avg(cnt),2) as avgTestSolved
-    from a
+    from 
+        a
 
 ОТВЕТ 1,68
 
@@ -151,11 +158,15 @@ with a as (
               user_id,
               problem_id,
               count (*)  as cnt  
-              from codesubmit c
-              group by user_id, problem_id)
+          from
+	       codesubmit c
+          group by
+	       user_id, problem_id
+)
 select 
-avg (cnt) as avg_problemeffort
-from a 
+      avg (cnt) as avg_problemeffort
+from
+      a 
 
 **Задание 3.4**
 
@@ -187,22 +198,26 @@ b – пользователи, решающие хотя бы одну зада
         with countAllUsers as (
 	select
 		count(distinct id) as cnt
-	from users
+	from
+	        users
 ),
 countUsersTryTask as (
 	select
-		count(distinct user_id) as cnt
-	from codesubmit
+		 count(distinct user_id) as cnt
+	from 
+                 codesubmit
 ),
 countUsersTryTest as (
 	select
-		count(distinct user_id) as cnt
-	from teststart
+		 count(distinct user_id) as cnt
+	from
+	         teststart
 )
 select
 	B.cnt::numeric/A.cnt as ratio_task,
 	E.cnt::numeric/A.cnt as ratio_test
-from countAllUsers A,countUsersTryTask  B, countUsersTryTest E
+from 
+        countAllUsers A,countUsersTryTask  B, countUsersTryTest E
 
 
 **Выводы:**  Доля пользователей, которая решала хотя бы одну задачу, составила 0,31, тестов - 0,44
@@ -219,7 +234,8 @@ from countAllUsers A,countUsersTryTask  B, countUsersTryTest E
 with users_with_transactions as (
         select 
             count(distinct user_id) as users_with_transactions
-        from "transaction" t ),
+        from 
+	    "transaction" t ),
     user_and_type as (
         select 
             user_id, 
