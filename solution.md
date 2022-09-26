@@ -1,3 +1,70 @@
+# ЗАДАНИЕ 1 
+Расчет rolling retention с разбивкой по когортам
+with SumRegUserPerMonth as (
+      select 
+          to_char(users.date_joined, 'YYYY-MM') as yw,
+          count(distinct users.id) as RegUser
+      from 
+            users 
+      group by 
+            yw /*тут мы смотрим сколько зарегестировалось в каждом месяце*/
+),
+LastEnterAfterRegistration as ( 
+      select 
+          to_char(u.date_joined, 'YYYY-MM') as yw,
+          u.id,
+          max(case
+	              when date (u2.entry_at) - date(u.date_joined) < 0 
+	              or date (u2.entry_at) is null 
+	              then 
+	              0 /*не было входа вообще*/
+	              else 
+	              date (u2.entry_at) - date(u.date_joined) 
+	              end)
+	              as n_days  /*сколько дней прошло со входа*/ 
+       from 
+          users u
+       left join 
+          userentry u2 
+        on 
+	  u.id = u2.user_id 
+        group by 
+	  yw, u.id
+), 
+EnterByDaysAndYM as (
+       select 
+             yw,
+             sum(case when n_days >=0 then 1 else 0 end) as day0,
+             sum(case when n_days >=1 then 1 else 0 end) as day1,
+             sum(case when n_days >=3 then 1 else 0 end) as day3,
+             sum(case when n_days >=7 then 1 else 0 end) as day7,
+             sum(case when n_days >=14 then 1 else 0 end) as day14,
+             sum(case when n_days >=30 then 1 else 0 end) as day30,
+             sum(case when n_days >=60 then 1 else 0 end) as day60,
+             sum(case when n_days >=90 then 1 else 0 end) as day90
+        from 
+             LastEnterAfterRegistration
+         group by 
+              yw
+)
+select 
+       l.yw, 
+       round(day0::numeric/RegUser*100, 2) as day0,
+       round(day1::numeric/RegUser*100, 2) as day1,
+       round(day3::numeric/RegUser*100, 2) as day3,
+       round(day7::numeric/RegUser*100, 2) as day7,
+       round(day14::numeric/RegUser*100, 2) as day14,
+       round(day30::numeric/RegUser*100, 2) as day30,
+       round(day60::numeric/RegUser*100, 2) as day60,
+       round(day90::numeric/RegUser*100, 2) as day90 /*Тут мы считаем проценты и округляем до двух знаков после запятой*/
+from 
+      EnterByDaysAndYM l
+inner join 
+      SumRegUserPerMonth r 
+on 
+      l.yw = r.yw
+order by 
+      yw
 # ЗАДАНИЕ 2
 Расчет метрик относительно баланса пользователя:
 
@@ -18,11 +85,15 @@ with balance_table as  (
        (case when type_id in (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,29) then value else 0 end) as charges,
        sum
        (case when type_id in (1,23,24,25,26,27,28,30) then -value else value end ) as balance
-     from "transaction" t
-     group by user_id
+     from
+        "transaction" t
+     group
+        by user_id
      )
-select avg(write_off), avg(charges), avg(balance), mode() within group (order by balance) as median_balance
-from balance_table
+select 
+     avg(write_off), avg(charges), avg(balance), mode() within group (order by balance) as median_balance
+from 
+     balance_table
 
 **Выводы:** очень маленький процент спиcания коинов по сравнению со средним балансом и средним начислением, не хватаем интересных идей на что можно использовать полученные коины.
 
@@ -49,7 +120,7 @@ from a
 group by user_id
 )
 select 
-round(avg(cnt),2) as avgProblemSolved
+round(avg(cnt),2) as AvgProblemSolved
 from b
 
 ОТВЕТ 9.18
