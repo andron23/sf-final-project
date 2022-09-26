@@ -66,7 +66,7 @@ on
 order by 
       yw
 # ЗАДАНИЕ 2
-Расчет метрик относительно баланса пользователя:
+Расчет метрик относительно баланса пользователя:  (одним запросом)
 
 -сколько в среднем коинов списывает 1 человек
 
@@ -76,26 +76,26 @@ order by
 
 -какой медианный баланс среди всех пользователей
 
-with balance_table as  (
+ with BalanceTable as  (
     select 
        user_id,
        sum
-       (case when type_id in (1,23,24,25,26,27,28,30) then value else 0 end) as write_off,
+       (case when type_id in (1,23,24,25,26,27,28,30) then value else 0 end) as write_off, /*пользователи, которые списывали коины*/
        sum
-       (case when type_id in (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,29) then value else 0 end) as charges,
+       (case when type_id in (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,29) then value else 0 end) as charges, /*пользователи, которым начисялялись коины*/
        sum
-       (case when type_id in (1,23,24,25,26,27,28,30) then -value else value end ) as balance
+       (case when type_id in (1,23,24,25,26,27,28,30) then -value else value end ) as balance /*баланс пользователей*/
      from
         "transaction" t
      group
         by user_id
      )
 select 
-     avg(write_off), avg(charges), avg(balance), mode() within group (order by balance) as median_balance
+     avg(write_off) as AvgWriteoff, avg(charges) as AvgCharges, avg(balance) as AvgBalance, mode() within group (order by balance) as MedianBalance
 from 
-     balance_table
+     BalanceTable
 
-**Выводы:** очень маленький процент спиcания коинов по сравнению со средним балансом и средним начислением, не хватаем интересных идей на что можно использовать полученные коины.
+**Выводы:** очень маленький процент спиcания коинов по сравнению со средним балансом и средним начислением, не хватает интересных идей на что можно использовать полученные коины.
 
 # ЗАДАНИЕ 3
 **Задание 3.1**
