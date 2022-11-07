@@ -475,5 +475,32 @@ full outer join
 on table_coderun.weekday=table_codesubmit.weekday
 	and table_codesubmit.dayhour=table_coderun.dayhour
 
+Для загрузки данных, построения графика, используем такой код:
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+df = pd.read_csv("C:\\Users\\denis\\do2_visualisation.csv") # df это у нас dataframe  (табличная структура данных)
+# Обрабатываем датафрейм для создания графика
+df_0=df.drop('weekday', axis=1)  #  Функция drop() используется для удаления набора меток из строки или столбца. 
+df_0 = df_0.groupby(by=['dayhour']).sum()   # суммируем пользователей по часам
+plt.plot(df_0)
+# добавим подписи для наглядности
+plt.title('Активность людей на платформе по часам')
+plt.xlabel('Часы', fontsize=14, color='red')
+plt.ylabel('Количество людей', fontsize=14, color='red')
+plt.grid(True)
+
+plt.show() # смотрим, что у нас получилось
+
+df_1=df.drop('dayhour', axis=1) 
+df_1 = df_1.groupby(by=['weekday']).sum()
+plt.plot(df_1)
+# добавим подписи для наглядности
+plt.title('Активность людей на платформе по дням недели')
+plt.xlabel('День недели', fontsize=14, color='red')
+plt.ylabel('Количество людей', fontsize=14, color='red')
+plt.grid(True)
+plt.show()   
+Выводы: Рекомендую проводить релизы в среду и четверг, с 11:00 до 15:00, потому что в этот период пользователи проявляют наибольшую активность, соответственно охват аудитории будет максимальный 
 
 
