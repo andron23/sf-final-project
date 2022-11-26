@@ -266,3 +266,95 @@ from t1 a
 В итоге у нас будет классическая подписка. Но на самой платформе будут элементы геймификации.
 Еще как вариант можно добавить отдельные пакеты задач и тестов
 Допусти человек готовится к собеседованию только по питону. Ему не нужна подписка. Мы можем ему открыть доступ к 50 задачам за определённую сумму.
+
+### **Дополнительное задание №2**
+
+Для выгрузки данных используем следующие SQL-запросы
+
+
++ В какие дни чаще/реже всего пользователи проявляют активность 
+```sql
+select 
+    count(*) as cnt,
+    to_char(entry_at, 'ID') as day_of_week
+from userentry u 
+group by day_of_week
+order by day_of_week
+```
++ В какое время люди больше/меньше всего решают задачи
+```sql
+with a as(
+ 	select 
+		user_id, 
+		created_at  
+ 	from coderun c 
+    union
+ 	select 
+		user_id, 
+        created_at 
+  	from codesubmit c 
+)
+select 
+count(*) as cnt_tasks,
+to_char(created_at, 'HH24') as day_time_tasks
+from a
+group by day_time_tasks
+order by day_time_tasks
+```
++ В какое время люди больше/меньше всего решают тесты
+```sql
+select 
+	count(*) as cnt_tests,
+	to_char(created_at, 'HH24') as day_time_tests
+from teststart t 
+group by day_time_tests
+order by day_time_tests
+```
++ Для загрузки данных и построения графиков используем данный код:
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+# В какие дни чаще/реже всего пользователи проявляют активность
+ef foo_1():
+    df = pd.read_csv(
+        "task1.csv", 
+        delimiter=';')
+    plt.bar(df["day_of_week"], df["cnt"])
+    plt.title('Активность людей на платформе по д/н', fontsize=16)
+    plt.xlabel('День недели', fontsize=14, color='black')
+    plt.ylabel('Ко-во людей', fontsize=14, color='black')
+    plt.grid(True)
+    plt.show()
+    
+# В какое время люди больше/меньше всего решают задачи
+def foo_2():
+    df = pd.read_csv(
+        "task2.csv",
+        delimiter=',')
+    plt.plot(df['day_time_tasks'], df['cnt_tasks'], '--b')
+    plt.title('Частота решения задач', fontsize=16)
+    plt.xlabel('Часы', fontsize=14, color='black')
+    plt.ylabel('Задачи', fontsize=14, color='black')
+    plt.grid(True)
+    plt.show()
+    
+# В какое время люди больше/меньше всего решают тесты
+def foo_3():
+    df = pd.read_csv(
+        "task3.csv",
+        delimiter=',')
+    plt.plot(df['day_time_tests'], df['cnt_tests'], '--b')
+    plt.title('Частота решения тестов', fontsize=16)
+    plt.xlabel('Часы', fontsize=14, color='black')
+    plt.ylabel('Тесты', fontsize=14, color='black')
+    plt.grid(True)
+    plt.show()
+
+# Вызов функций
+foo_1()
+foo_2()
+foo_3()
+```
+Выводы: В среду и четверг люди проявляют наибольшую активность на платформе  и наименьшую активность в выходные дни.
+В течение дня пик активности пользователей на платформе происходит в период с 10.00 до 15.00 и меньше всего пользователей находится на платформе в период с 2.00 до 3.00.
+Соответственно оптимальное время на добавления нового функционала ввыходные дни с с 2.00 до 3.00
