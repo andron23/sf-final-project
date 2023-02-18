@@ -420,3 +420,65 @@ from TMP_2
 На 60-й и 90-й день (т.e в июне-июле) пользователи не заходят на платформу. 
 Возможно, стоит перед летними каникулами запустить рекламную кампанию с пакетами заданий со скидками - "Летний интенсив".
 */
+
+--ЗАДАНИЕ №5
+--Вопросы от CTO
+--SQL-запрос
+
+with UsersActivity as (
+	select created_at
+	from teststart t 
+	union all
+	select created_at 
+	from coderun c  
+	union all
+	select created_at 
+from codesubmit c2  
+)
+select 
+        created_at,
+        to_char(created_at, 'HH24:00') as hour,
+        to_char(created_at, 'Day') as week_day,
+        extract(isodow from created_at) as nb_week_day
+from UsersActivity
+
+--Python-код
+
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+df = pd.read_csv("sto_2.csv") # df - Data Frame
+
+def foo_1():
+# Обрабатываем датафрейм для создания графика
+    df_1=df.drop('weekday', axis=1)  # удаляем набор меток из строки или столбца. 
+    df_1 = df_1.groupby(by=['dayhour']).sum()   # суммируем пользователей по часам
+    plt.plot(df_1)
+# добавим подписи для графика
+    plt.title('Активность на платформе по часам', fontsize=14, fontweight='bold')
+    plt.xlabel('Время', fontsize=12, color='blue')
+    plt.ylabel('Пользователи', fontsize=12, color='blue')
+    plt.xticks(rotation=90) #Rotate axis text 
+    plt.grid(True)
+    plt.show() # смотрим, что у нас получилось
+
+def foo_2():
+    df_2=df.drop('dayhour', axis=1) 
+    df_2 = df_2.groupby(by=['weekday']).sum()
+    plt.plot(df_2)
+    # добавим подписи для графика
+    plt.title('Активность на платформе по дням', fontsize=14, fontweight='bold')
+    plt.xlabel('День недели', fontsize=12, color='blue')
+    plt.ylabel('Пользователи', fontsize=12, color='blue')
+    plt.grid(True)
+    plt.show()
+    
+# Вызов функций
+foo_1()
+foo_2()
+
+/*
+Выводы: В среду и четверг люди проявляют наибольшую активность на платформе и наименьшую активность в выходные дни.
+В течение дня пик активности пользователей на платформе происходит в период с 10.00 до 15.00 и меньше всего пользователей находится на платформе в период с 0:00 до 3:00.
+Соответственно оптимальное время на добавления нового функционала в выходные дни с с 0:00 до 3:00
+*/ 
