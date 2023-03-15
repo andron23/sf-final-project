@@ -168,4 +168,161 @@ from user_transactions
 Сколько человек покупало хотя бы что-то из вышеперечисленного = 1 139
 Сколько человек всего имеют хотя бы 1 транзакцию, пусть даже только начисление = 2 402
 
+Дополнительное задание
+Мне кажется на платформе уже выбран вариант монетизации "подписка", при этом в подписке пользователей могут привлекать разные возможности, например возможность получить подсказки, разборы задач и ответы. Для этого я предлагаю посчитать в какие моменты нужно предгалать пользователю оплатить подписку потому что:
+на принятие решения о покупке подписки может влиять сложность задач и тестов, а также время суток когда человек решает задачи.
+
+Код для расчета:
+--1. какие задачи самые сложные
+with a as(
+	select  
+		user_id,
+		problem_id,
+		is_false as att
+	from 
+	codesubmit c 
+	union
+	select 
+		user_id, 
+		problem_id,
+		0 
+	from
+	coderun c1
+),
+task as(
+	select 
+		user_id,
+		problem_id,
+		sum(att)+1 as attempts
+	from a
+	group by
+		user_id,
+		problem_id
+),
+result as (
+select 
+	problem_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	task
+group by
+	problem_id,
+	user_id
+order by
+	problem_id
+)
+select 
+	problem_id,
+	sum(att)/count(distinct user_id) as att_aver
+from 
+	result
+group by
+	problem_id
+having
+	sum(att)/count(distinct user_id) > 1.5
+order by
+	att_aver desc 
+select ...
+
+--2. Какие тесты самые сложные
+with test as(
+	select
+		user_id,
+		test_id,
+		count(distinct id) as attempts
+	from
+		teststart t3 
+	group by 
+		user_id,
+		test_id
+),
+result as (
+select 
+	test_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	test
+group by
+	test_id,
+	user_id
+order by
+	test_id
+)
+select 
+	test_id,
+	sum(att)/count(distinct user_id) as att_aver
+from 
+	result
+group by
+	test_id
+having
+	sum(att)/count(distinct user_id) > 1.5
+order by
+	att_aver desc 
+
+--3.когда сложнее всего решать задачи
+with a as(
+	select  
+		extract(hour from c.created_at) as hour_act,
+		user_id,
+		problem_id,
+		is_false as att
+	from 
+	codesubmit c 
+	union
+	select 
+		extract(hour from c1.created_at) as hour_act,
+		user_id, 
+		problem_id,
+		0 
+	from
+	coderun c1
+),
+task as(
+	select 
+		hour_act,
+		user_id,
+		problem_id,
+		sum(att)+1 as attempts
+	from a
+	group by
+		hour_act,
+		user_id,
+		problem_id
+),
+result as (
+select 
+	problem_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	task
+group by
+	problem_id,
+	user_id
+order by
+	problem_id
+)
+select 
+	hour_act,
+	avg(attempts) as avg_att
+from task
+group by
+	hour_act 
+having 
+	avg(attempts) > 1.5
+order by 
+	hour_act, 
+	avg_att 
+
+
+Выводы:
+1. получен список задач, на которые тратится в среднем больше 1,5 попыток
+2. получен список тестов, на которые тратится в среднем больше 1,5 попыток
+3. опеределен временной промежуток, когда сложнее всего решить задачу
+
+Итоговые выводы по смене модели монетизации
+Я считаю, что нужно продвигать подписку на платформе делая акцент на подсказках, разборах задач и просмотре ответов активнее всего с 5.00 до 7.00 утра и с 21.00 до 23.00, потому что решение задач в эти часы требует больше всего попыток. А еще, беря во внимание, что на сложные задачи и тесты тратиться больше попыток нужно предлагать пользователю подписку при решении этих заданий.
 
