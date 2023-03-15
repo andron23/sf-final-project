@@ -21,7 +21,7 @@ select
 	round(count(distinct case when diff >= 90 then user_id end)*100.0/count(distinct case when diff >= 0 then user_id end), 2) as "90 day"
 from a
 group by cohort
-Выводы:
+Выводы: Самый высокий показатель Rolling retention у пользователей, зарегистрироваашихся в январе 2022 года. 
 
 Задание 2
 with balances as(
@@ -59,6 +59,10 @@ select
 	avg(balance) as avg_balance
 from balances
 Выводы:
+сколько в среднем коинов списывает 1 человек = 31,2
+сколько в среднем коинов начисляется 1 человеку = 120
+какой средний баланс среди всех пользователей = 59
+какой медианный баланс среди всех пользователей = 89
 
 Задание 3
 with a as(
@@ -125,7 +129,12 @@ select
 	round(count(distinct case when avg_task>0 or avg_test>0 then id end)*100/count(distinct id), 2) as "Доля активных пользователей, %"
 from 
 	result
-Выводы:
+Выводы: 
+Сколько в среднем пользователь решает задач = 9,18
+Сколько в среднем пользователь проходит тестов = 1,68
+Сколько в среднем пользователь делает попыток для решения 1 задачи = 1,61
+Сколько в среднем пользователь делает попыток для прохождения 1 теста = 1,15
+Какая доля от общего числа пользователей решала хотя бы одну задачу или начинала проходить хотя бы один тест = 63%
 
 Задание 3 +
 with 
@@ -151,8 +160,171 @@ select
 	count(distinct case when type_id >0 then id end) as "имеют хотя бы 1 транзакцию, чел"
 from user_transactions
 Выводы:
+Сколько человек открывало задачи за кодкоины = 522
+Сколько человек открывало тесты за кодкоины = 676
+Сколько человек открывало подсказки за кодкоины = 53
+Сколько человек открывало решения за кодкоины = 151
+Сколько подсказок/тестов/задач/решений было открыто за кодкоины (если задача/... открыта разными людьми, то это считаем разными фактами открытия) = 3 205
+Сколько человек покупало хотя бы что-то из вышеперечисленного = 1 139
+Сколько человек всего имеют хотя бы 1 транзакцию, пусть даже только начисление = 2 402
+
+Дополнительное задание
+Мне кажется на платформе уже выбран вариант монетизации "подписка", при этом в подписке пользователей могут привлекать разные возможности, например возможность получить подсказки, разборы задач и ответы. Для этого я предлагаю посчитать в какие моменты нужно предгалать пользователю оплатить подписку потому что:
+на принятие решения о покупке подписки может влиять сложность задач и тестов, а также время суток когда человек решает задачи.
+
+Код для расчета:
+--1. какие задачи самые сложные
+with a as(
+	select  
+		user_id,
+		problem_id,
+		is_false as att
+	from 
+	codesubmit c 
+	union
+	select 
+		user_id, 
+		problem_id,
+		0 
+	from
+	coderun c1
+),
+task as(
+	select 
+		user_id,
+		problem_id,
+		sum(att)+1 as attempts
+	from a
+	group by
+		user_id,
+		problem_id
+),
+result as (
+select 
+	problem_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	task
+group by
+	problem_id,
+	user_id
+order by
+	problem_id
+)
+select 
+	problem_id,
+	sum(att)/count(distinct user_id) as att_aver
+from 
+	result
+group by
+	problem_id
+having
+	sum(att)/count(distinct user_id) > 1.5
+order by
+	att_aver desc 
+select ...
+
+--2. Какие тесты самые сложные
+with test as(
+	select
+		user_id,
+		test_id,
+		count(distinct id) as attempts
+	from
+		teststart t3 
+	group by 
+		user_id,
+		test_id
+),
+result as (
+select 
+	test_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	test
+group by
+	test_id,
+	user_id
+order by
+	test_id
+)
+select 
+	test_id,
+	sum(att)/count(distinct user_id) as att_aver
+from 
+	result
+group by
+	test_id
+having
+	sum(att)/count(distinct user_id) > 1.5
+order by
+	att_aver desc 
+
+--3.когда сложнее всего решать задачи
+with a as(
+	select  
+		extract(hour from c.created_at) as hour_act,
+		user_id,
+		problem_id,
+		is_false as att
+	from 
+	codesubmit c 
+	union
+	select 
+		extract(hour from c1.created_at) as hour_act,
+		user_id, 
+		problem_id,
+		0 
+	from
+	coderun c1
+),
+task as(
+	select 
+		hour_act,
+		user_id,
+		problem_id,
+		sum(att)+1 as attempts
+	from a
+	group by
+		hour_act,
+		user_id,
+		problem_id
+),
+result as (
+select 
+	problem_id,
+	user_id,
+	avg(attempts) as att 
+from 
+	task
+group by
+	problem_id,
+	user_id
+order by
+	problem_id
+)
+select 
+	hour_act,
+	avg(attempts) as avg_att
+from task
+group by
+	hour_act 
+having 
+	avg(attempts) > 1.5
+order by 
+	hour_act, 
+	avg_att 
 
 
+Выводы:
+1. получен список задач, на которые тратится в среднем больше 1,5 попыток
+2. получен список тестов, на которые тратится в среднем больше 1,5 попыток
+3. опеределен временной промежуток, когда сложнее всего решить задачу
+
+Итоговые выводы по смене модели монетизации
+Я считаю, что нужно продвигать подписку на платформе делая акцент на подсказках, разборах задач и просмотре ответов активнее всего с 5.00 до 7.00 утра и с 21.00 до 23.00, потому что решение задач в эти часы требует больше всего попыток. А еще, беря во внимание, что на сложные задачи и тесты тратиться больше попыток нужно предлагать пользователю подписку при решении этих заданий.
 
 Дополнительное задание 2
 Для выгрузки данных используем SQL-запрос:
@@ -191,4 +363,15 @@ as (
 select *
 from 
 	activity_base a
-Для загрузки данных, построения графика, ..., используем такой код:
+	
+Для загрузки данных, построения графиков, используем такой код:
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+primer = pd.read_csv('activity_base_202303101505.csv', sep=',')
+week_day_gr = primer.groupby(['day_of_week'])['ex_id'].count()
+hour_gr = primer.groupby(['hour_act'])['ex_id'].count()
+week_day_gr.plot(kind="bar", fontsize=10)
+hour_gr.plot(kind="bar", fontsize=10)
+
+Выводы: Рекомендую проводить релизы в четверг, с 10.00 до 16.00, потому что в это время самая высокая активность пользователей на платформе.
