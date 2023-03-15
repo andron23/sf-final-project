@@ -326,3 +326,53 @@ order by
 Итоговые выводы по смене модели монетизации
 Я считаю, что нужно продвигать подписку на платформе делая акцент на подсказках, разборах задач и просмотре ответов активнее всего с 5.00 до 7.00 утра и с 21.00 до 23.00, потому что решение задач в эти часы требует больше всего попыток. А еще, беря во внимание, что на сложные задачи и тесты тратиться больше попыток нужно предлагать пользователю подписку при решении этих заданий.
 
+Дополнительное задание 2
+Для выгрузки данных используем SQL-запрос:
+with activity_base
+as (
+	select 
+		extract(dow from t.created_at) as day_of_week,
+		to_char(t.created_at, 'Day') AS day_name,
+		extract(hour from t.created_at) as hour_act,
+		t.test_id as ex_id,
+		t.user_id,
+		'test' as type
+	from
+		teststart t 
+	union 
+	select
+		extract(dow from c.created_at) as day_of_week,
+		to_char(c.created_at, 'Day') AS day_name,
+		extract(hour from c.created_at) as hour_act,
+		c.problem_id,
+		c.user_id,
+		'problem' as type
+	from
+		coderun c
+	union 
+	select
+		extract(dow from s.created_at) as day_of_week,
+		to_char(s.created_at, 'Day') AS day_name,
+		extract(hour from s.created_at) as hour_act,
+		s.problem_id,
+		s.user_id,
+		'problem' as type
+	from
+		codesubmit s
+)
+select *
+from 
+	activity_base a
+	
+Для загрузки данных, построения графиков, используем такой код:
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+primer = pd.read_csv('activity_base_202303101505.csv', sep=',')
+week_day_gr = primer.groupby(['day_of_week'])['ex_id'].count()
+hour_gr = primer.groupby(['hour_act'])['ex_id'].count()
+week_day_gr.plot(kind="bar", fontsize=10)
+hour_gr.plot(kind="bar", fontsize=10)
+
+Выводы: Рекомендую проводить релизы в четверг, с 10.00 до 16.00, потому что в это время самая высокая активность пользователей на платформе.
+
