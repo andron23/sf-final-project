@@ -199,4 +199,27 @@ count (distinct case when activity_time between '11:00:01' and '17:00:00' then a
 count (distinct case when activity_time between '17:00:01' and '23:59:59' then active_users end) as evening_activity
 from base
 
+ВЫГРУЗКА ДАННЫХ ДЛЯ ПОСТРОЕНИЯ ГРАФИКОВ:
 
+1) активность пользователей по дням недели:
+import pandas as pd
+import matplotlib.pyplot as plt
+df_days = pd.read_csv("../Final_task/Activity_days.csv")
+plt.plot(df_days)
+plt.title('Активность пользователей в течение недели', fontsize=15, fontweight='bold')
+plt.xlabel('Дни', fontsize=15, color='red')
+plt.ylabel('Пользователи', fontsize=15, color='red')
+plt.xticks(rotation=90)
+plt.grid(True)
+plt.show()
+
+2) активность пользователей по времени суток:
+df_time = pd.read_csv("../Final_task/Activity_time.csv")
+df_time = df_time.T
+plt.plot(df_time)
+plt.title('Активность пользователей в течение cуток', fontsize=15, fontweight='bold')
+plt.xlabel('Часть дня', fontsize=15, color='red')
+plt.ylabel('Пользователи', fontsize=15, color='red')
+plt.xticks(rotation=90)
+plt.grid(True)
+plt.show()
