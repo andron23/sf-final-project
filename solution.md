@@ -173,12 +173,61 @@ from "transaction" t
 
 На платформе IT Resume уже отражены варианты подписки: демо, годовая и месячная. Там же указаны преимущества платных подписок - в том числе возможность решения дополнительных задач, использования подсказок и разборов (выводы о целесообразности подобных функций в составе платной подписке подтверждаются данными, анализ которых осуществляется в рамках указанной работы).
 
-Необходимо отметить, что согласно расчетам Rolling Retention отмечается стабильное снижение активности пользователей с увеличением срока их регистрации (пик активности - первый месяц после дня регистрации на платформе, по итогам 3 месяцев на платформу возвращается менее 10% пользователей). Вместе с тем подобная динамика характерна не для всех пользователей.
-
+Необходимо отметить, что согласно расчетам Rolling Retention отмечается стабильное снижение активности пользователей с увеличением срока их регистрации (пик активности - первый месяц после дня регистрации на платформе, по итогам 3 месяцев на платформу возвращается менее 10% пользователей). В таком случае вопрос целесообразности включения годовой подписки требует дополнительного обоснования. 
+Вместе с тем подобная динамика характерна не для всех пользователей.
 Так, существует ряд пользователей, активность которых значительно выше средней (это пользователи, связанные с "компаниями" - возможно, корпоративные клиенты).
-Такие корпоративные клиенты сохраняют более высокую активность (возвращаемость) на портал с течением времени: по итогам 3 месяцев на платформу возвращается более 20% пользователей корпоративных клиентов, по истечении месяца - почти половина клиентов (в отличие от средней активности всех пользователей, которая составляет порядка 20% по истечение месяца). Кроме того, такие пользователи решают в среднем больше задач (23 задачи у пользователей, ассоциированных с корпоративными клиентами, против 8 задач у всех пользователей в среднем), аналогичная динамика прослеживается в прохождении тестов.
+Такие пользователи-корпоративные клиенты сохраняют более высокую активность (возвращаемость) на портал с течением времени: по истечении месяца на портал возвращается почти половина клиентов (в отличие от средней активности всех пользователей, которая составляет порядка 20% по истечение месяца), по итогам 3 месяцев на платформу возвращается более 20% таких пользователей (против 8% в обобщенной выборке по всем пользователям). Кроме того, такие пользователи решают в среднем больше задач (23 задачи у пользователей-корпоративнымх клиентов, против 8 задач у всех пользователей в среднем), аналогичная динамика прослеживается в прохождении тестов.
 
+Указанная тенденция подтверждается результатами следующих выборок:
 
+1) активность с течением времени:
+with base as 
+	(select user_id, company_id,
+	to_char(date_joined, 'YYYY-MM') as ym,
+	date(entry_at)-date(date_joined) as n_of_visit_days
+	from users u, userentry u2 
+	where u.id = u2.user_id) 
+select ym, 
+round(count(distinct case when n_of_visit_days >= 0 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day0,
+round(100.0 * count(distinct case when n_of_visit_days >= 1 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day1,
+round(100.0 * count(distinct case when n_of_visit_days >= 3 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day3,
+round(100.0 * count(distinct case when n_of_visit_days >= 7 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day7,
+round(100.0 * count(distinct case when n_of_visit_days >= 14 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day14,
+round(100.0 * count(distinct case when n_of_visit_days >= 30 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day30,
+round(100.0 * count(distinct case when n_of_visit_days >= 60 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day60,
+round(100.0 * count(distinct case when n_of_visit_days >= 90 then user_id end) / count(distinct case when n_of_visit_days >= 0 then user_id end), 2) as day90
+from base
+where company_id is not NULL
+group by ym
+order by ym
+
+2) активность в решении задач:
+with base as
+	(select user_id, company_id, count(distinct c.problem_id) as summ_tasks
+	from coderun c
+	left join users u 
+	on u.id = c.user_id 
+	group by user_id, company_id
+	order by user_id ) 
+select * --round(avg(summ_tasks),1) as avg_tasks
+from base
+where company_id is not null
+
+3) активность в прохождении тестов:
+with base as
+	(select user_id, company_id, count(distinct t.test_id) as summ_tasks
+	from teststart t
+	left join users u 
+	on u.id = t.user_id 
+	group by user_id, company_id
+	order by user_id ) 
+select round(avg(summ_tasks),1) as avg_tasks
+from base
+where company_id is not null
+
+Таким образом, годовая / полугодовая подписка может быть интересна именно корпоративным пользователям - компаниям, заинтересованным в развитии сотрудников. В свою очередь одним из факторов, способных привлечь компании на платформу, может являться вывод: пользователи, ассоциированные с компаниями, действительно активны  - отрабатывают обучение качественно, заинтересованы в решении задач, возвращаются на платформу.
+
+Также можно отметить, что доля таких пользователей на платформе невелика (порядка 9%). Наращивание доли корпоративных клиентов может способствовать развитию платформы и формированию стабильных продолжительных денежных поступлений.
 
 
 
