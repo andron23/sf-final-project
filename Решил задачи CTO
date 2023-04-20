@@ -1,0 +1,75 @@
+**Дополнительное задание №2.**
++ Задачи СТО.
++ 1.В какие дни люди чаще / реже проявляют активность на платформе:
++ Код решения (SQL):
+
++ select cnt,
++ case 
++   when part_day = 1 then 'Monday'
++   when part_day = 2 then 'Tuesday'
++   when part_day = 3 then 'Wednesday'
++   when part_day = 4 then 'Thursday'
++   when part_day = 5 then 'Friday'
++   when part_day = 6 then 'Saturday'
++   when part_day = 7 then 'Sanday' 
++ end
++ from(
++   select part_day, count(*) as cnt 
++   from (
++     select extract(isodow from created_at) as part_day 
++     from (
++       select user_id , created_at from coderun c 
++       union all
++       select user_id , created_at from codesubmit c
++       union all 
++       select user_id , created_at from teststart t) as days) as nedelya
++       group by part_day) as finish
+
++ 2. В какое время люди больше / меньше всего решают задачи / тесты на платформе
++ Код решения (SQL):
+
++ select time_act, count(user_id) as cnt 
++ from( 
++   select user_id , extract(hour from created_at) as time_act 
++   from coderun c 
++   union all
++   select user_id , extract(hour from created_at) as time_act 
++   from codesubmit c
++   union all 
++   select user_id , extract(hour from created_at) as time_act 
++   from teststart t
++   order by time_act desc) as finish
++   group by time_act
++   order by cnt desc
++
+**ВЫГРУЗКА ДАННЫХ ДЛЯ ПОСТРОЕНИЯ ГРАФИКОВ:**
++
++ 1.В какие дни люди чаще / реже проявляют активность на платформе:
++ Код решения (Python):
++
++ import matplotlib.pyplot as plt
++ import numpy as np
++ 
++ X, Y = np.loadtxt('C:\\Users\\.......STO6.csv', delimiter=',', unpack=True)
++ plt.plot(X, Y, marker = 'X', color = 'indigo')
++ plt.grid()
++ plt.title('активность по дням недели')
++ plt.xlabel('Дни недели')
++ plt.ylabel('Активность')
++ plt.show()
++
++ 2. В какое время люди больше / меньше всего решают задачи / тесты на платформе/
++ Код решения (Python):
++
+import matplotlib.pyplot as plt
+import numpy as np
++ 
++ X, Y = np.loadtxt('C:\\Users\\.......STO7.csv', delimiter=',', unpack=True)
++ plt.plot(X, Y, marker = 'X', color = 'indigo')
++ plt.grid()
++ plt.title('активность по часам')
++ plt.xlabel('время, час')
++ plt.ylabel('Активность')
++ plt.show()
+
+**Выводы: рекомендация проводить релизы в менее нагруженные дни и часы - выходные ночью.**
