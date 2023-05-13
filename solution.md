@@ -30,15 +30,15 @@ group by cohort
 
 ***Выводы***: 
 
-Большая часть клиентов ограничивает проявляют активность в течении дня регистрации
+Большая часть клиентов проявляют активность в течении дня регистрации
 
-(от ~60% до ~70% клиентов отваливаются через день после регистрации)
+(от ~60% до ~70% клиентов отваливаются через день после регистрации).
 
 При этом 8%-15% клиентов проявляют активность на горизонте больше 30 дней
 
 Исходя из этого считаю, что сервису необходимо два вариант подписки: на 1 день и на 1 месяц.
 
-Также можно рассмотреть промежуточные варианты (подписка на 3 дня и 2 недели)
+Также можно рассмотреть промежуточные варианты (подписка на 3 дня и 2 недели).
 
 #**Задание 2**
 ```SQL
@@ -83,10 +83,13 @@ from balance_table
 
 ***Выводы***: 
 
-В среднем пользователи тратят ~70 coin-ов. 
+В среднем за период анализа (11 месяцев) пользователи тратят ~70 coin-ов.
 
-Принимая во внимание, что медианный баланс пользователей = 53 coin-а, 
-можно установить стоимость подписки в районе 120 coin-ов в рублёвом эквиваленте 
+При этом 1 пользователю (за 11 месяцев ) в среднем начисленно ~307 coin-ов, 
+
+а медианный баланс пользователей = 53 coin-а.
+
+Данных для расчёта стоимости подписки недостаточно. Дальнейший анализ представлен в блоке доп. заданий.  
 
 #**Задание 3**
 
@@ -183,7 +186,119 @@ select
 ![image](https://github.com/FatPodobed/sf-final-project/assets/101504000/92558dcb-5301-4534-b4df-40b07b3c8983)
 
 ***Выводы***: 
-Самым популярным функционалом из платного является открытие тестов и задач, а также открытия решений к задачам
-Этим функционалом пользовались ~22%, ~28% и ~6% активной базы соответсвенно
-При этом открытием подсказок пользовалось меньше ~2%, поэтому его можно оставить бесплатным 
+Самым популярным функционалом из платного является открытие тестов и задач, а также открытия решений к задачам.
+Этим функционалом пользовались ~22%, ~28% и ~6% активной базы соответсвенно.
+При этом открытием подсказок пользовалось меньше ~2%, поэтому его можно оставить бесплатным.
 
+#**Дополнительное задание**
+
+Мне кажется, что для принятия решения о стоимости и длительности подписки нехватает данных
+
+Поэтому я сделал доп. расчёты
+
+*Среднемесячные списания*
+
+```SQL
+with transactions_base as(
+	select
+		t.id as t_id, 
+		to_char(t.created_at, 'YYYY-MM') as transaction_date,
+		tt.type as type_id,
+		tt.description,
+		t.value,
+		u.id as user_id
+	from 
+		"transaction" t
+	left join 
+		transactiontype tt
+	on 
+		t.type_id = tt."type"
+	full join 
+		users u
+	on u.id = t.user_id
+	where to_char(t.created_at, 'YYYY') >= '2022'
+)
+select
+	transaction_date,
+	count(distinct user_id) as spending_users_number,
+	sum(value) as total_spend,
+	round(avg(value), 2) as avg_spend_amount
+from transactions_base
+where type_id in (1, 23, 24, 25, 26, 27, 28, 30)
+group by transaction_date  
+
+```
+![image](https://github.com/FatPodobed/sf-final-project/assets/101504000/25d60a01-676c-488c-a515-72dd6bdceb24)
+
+
+За последние 5 месяцев видно, что средние траты ползьователей находятся в диапазоне от ~22 до ~25 coin-ов
+
+Этот диапазон можно использовать для формирования стоимости подписки на месяц.
+
+*Среднемесячные пополнения кошелька*
+
+```SQL
+with transactions_base as(
+	select
+		t.id as t_id, 
+		to_char(t.created_at, 'YYYY-MM') as transaction_date,
+		tt.type as type_id,
+		tt.description,
+		t.value,
+		u.id as user_id
+	from 
+		"transaction" t
+	left join 
+		transactiontype tt
+	on 
+		t.type_id = tt."type"
+	full join 
+		users u
+	on u.id = t.user_id
+	where to_char(t.created_at, 'YYYY') >= '2022'
+)
+select
+	transaction_date,
+	count(distinct user_id) as paying_users_number,
+	sum(value) as total_payments,
+	avg(value) as avg_payment_amount
+from transactions_base
+where type_id = 2
+group by transaction_date 
+```
+![image](https://github.com/FatPodobed/sf-final-project/assets/101504000/e29dac7d-f414-4ae0-91d7-de1c9fbb0522)
+
+За период с февраля по апрель 22 пользователи пополняли кошелёк на сумму в диапазоне от 250 до 400 coin-ов (296) в среднем
+
+Учитывая, что в среднем в месяц тратится 22-25 coin-ов, то этой суммы хватит на 12 месяцев.
+
+При этом в январе пользователи пополнели кошельки в среднем на 100 coin-ов (хватит ~ на 4 месяца).
+
+Исходя из этого можно рассмотреть вариант добавления подписки на год и полгода(на 3 месяца).
+
+*Популярность задач пополнения кошелька*
+
+```SQL
+with a as (
+	select
+		c.problem_id,
+		count(distinct c.user_id) as user_per_problem	 
+	from codesubmit c
+	group by problem_id
+	order by count(distinct user_id ) desc
+)
+select 
+	a.problem_id,
+	p.name,	
+	a.user_per_problem
+from a
+left join problem p
+on p.id = a.problem_id
+order by user_per_problem desc
+```
+
+![image](https://github.com/FatPodobed/sf-final-project/assets/101504000/0ecad04b-c65e-4354-be07-3328e283e944)
+
+Также можно рассмотреть вариант продажи отдельных задач (или продажи решений, подсказок и т.д. для них).  
+
+Для этого я посчитал, сколько человек дедлали подход к каждой задаче.
