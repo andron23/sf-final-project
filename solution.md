@@ -280,3 +280,62 @@ from cnt_users_day
 --В бесплатном варианте оставить очень служные задачи с 3-мя бесплатными попытками решения
 --В качестве бонусов давать скидку 30% на повторную подписку тарифа "Неделька" и 40% на повторную подписку на тариф "На один день"
 --Ну и следить за активностью от базовой точки
+
+----------------Дополнительное задание 2 ----------------
+-------SQL запрос ----------------------
+with UsersActivity as (
+	select
+		created_at
+	from teststart t 
+	union all
+	select
+		created_at 
+	from coderun c  
+	union all
+	select
+		created_at 
+	from codesubmit c2)
+select 
+	created_at as date,
+	to_char(created_at, 'HH24:00') as hour,
+	to_char(created_at, 'Day') as day,
+	extract(isodow from created_at) as nb_week_day
+from UsersActivity
+
+-------Python код ----------------------
+# Импорт бибилиотек
+import pandas as pd
+import matplotlib.pyplot as plt
+# читаем CSV файл и проверяем как распознался
+df = pd.read_csv("STO_PichuginSI.csv") 
+df.dtypes
+
+def foo_1():
+# Строим первый график: пользователи по часам
+    df_1 = df.groupby(by=['hour']).count()
+    plt.plot(df_1)
+    plt.title('Активность по часам', fontsize=14, fontweight='bold')
+    plt.xlabel('Время', fontsize=12)
+    plt.ylabel('Пользователи', fontsize=12)
+    plt.xticks(rotation=90)
+    plt.grid(True)
+    plt.show()
+foo_1()
+
+def foo_2():
+# Строим второй графиик по дням
+    df_2 = df.groupby(by=['day']).count()
+    plt.plot(df_2)
+    plt.title('Активность по дням', fontsize=14, fontweight='bold')
+    plt.xlabel('День недели', fontsize=12)
+    plt.ylabel('Пользователи', fontsize=12)
+    plt.grid(True)
+    plt.show()
+foo_2()
+
+-- Выводы когда проводить тех.работы:
+-- Наибольшая активность по дням в Четверг и Среду
+-- Наименьшая активность по дням в Субботу и Воскресенье
+-- Наибольшая актвиность по времени с 12:00 до 14:00 и второй пик с 17:00 до 19:00
+-- Наименьшая актвиность по времени с 23:00 до 04:00
+---- Оптимальное время проведение тех.работ в выходные в период с 23:00 до 04:00
