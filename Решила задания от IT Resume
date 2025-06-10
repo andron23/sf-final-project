@@ -1,0 +1,245 @@
+Задание 1
+
+Расчет Расчет rolling retention с разбивкой по когортам.
+В качестве когорт берем месяц регистрации на платформе. В качестве n-дней - 0, 1, 3, 7, 14, 30, 60 и 90 дней.
+
+with t_cohort as(
+select
+u2.id as user_id,
+to_char(date_joined, 'YYYY-MM') as cohort,
+extract(days from entry_at - date_joined) as day_diff
+from userentry u
+join users u2
+on u.user_id = u2.id
+where to_char(date_joined, 'YYYY-MM') >= '2022-01')
+select cohort,
+round(count (distinct case when day_diff >= 0 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "0 day",
+round(count (distinct case when day_diff >= 1 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "1 day",
+round(count (distinct case when day_diff >= 3 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "3 day",
+round(count (distinct case when day_diff >= 7 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "7 day",
+round(count (distinct case when day_diff >= 14 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "14 day",
+round(count (distinct case when day_diff >= 30 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "30 day",
+round(count (distinct case when day_diff >= 60 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "60 day",
+round(count (distinct case when day_diff >= 90 then user_id end)*100.0 / count (distinct case when day_diff >= 0 then user_id end), 2) as "90 day"
+from t_cohort
+group by cohort
+
+
+cohort |0 day |1 day|3 day|7 day|14 day|30 day|60 day|90 day|
+-------+------+-----+-----+-----+------+------+------+------+
+2022-01|100.00|41.77|35.54|29.72| 25.30| 15.26|  8.84|  4.62|
+2022-02|100.00|29.18|20.99|16.27| 12.68|  9.43|  5.61|  1.23|
+2022-03|100.00|30.60|24.82|18.31| 13.98|  8.19|  1.20|  0.00|
+2022-04|100.00|43.75|35.58|28.37| 21.63| 10.10|  0.00|  0.00|
+
+	
+Выводы: максимальный процент пользования платформой приходится на первыe 3 дня (в среднем 29%), при этом максимальный процент падения активности  пользователей приходится на первую неделю -12%. 
+Далее до месяца происходит падение активности на платформе в интервале  c 7% до 4%. Исходя из этого делаем вывод, что основному % пользователей подойдет краткосрочный вариант подписки. 
+Неделя - для закрытия краткосрочных потребностей пользователей платформы; месяц - для отработки знаний и преобретения навыков; безлимит - для полного, детального погружения.
+Стоит обратить вимание на снижение активности пользователей до нуля в марте и апреле, возможно обусловлено сезонностью, необходимо рассмотреть запуск стимулирующей акции.
+
+__________________________________________________________________________________________________________________________________________________________________________________________
+
+Задание 2
+
+Расчет метрик относительно баланса пользователя (cписания - транзакции с type in (1, 23, 24, 25, 26, 27, 28, 30)):
+	
+with t_balances as (
+	select
+		user_id,
+		SUM(
+		case 
+				when type_id in (1, 23, 24, 25, 26, 27,28, 30) then - value
+				else null
+				end) as written_off,
+		sum(
+		case 
+				when type_id not in (1, 23, 24, 25, 26, 27,28, 30) then value
+				else null
+				end) as accrued,			
+		sum(
+		case 
+				when type_id in (1, 23, 24, 25, 26, 27,28, 30) then - value
+				else value
+				end) as balance
+	from "transaction" t 
+	group by user_id
+)
+select  round(avg(written_off), 2) as avg_written_off_1user,
+		round(avg(accrued), 2) as avg_accrued_1user,
+		round(avg(balance), 2) as avg_balance,
+		percentile_cont(0.5) within group (order by balance) as median_balance
+from t_balances tb
+
+
+avg_written_off_1user|avg_accrued_1user|avg_balance|median_balance|
+---------------------+-----------------+-----------+--------------+
+               -70.25|           306.52|     275.22|          62.0|
+
+
+70.25 коинов в среднем списывает 1 человек
+306.52 коинов в среднем начисляется 1 человеку
+275.22 коинов средний баланс среди всех пользователей
+62.0 коина медианный баланс среди всех пользователей
+
+
+Выводы: платными функционалом пользователи пользуются мало, в среднем пользователю начисляется 306 коинов, а тратит он 70 коинов,
+а значит нужно снизить количество бесплатного функционала на платформе. Кроме того, при расчете стоимости подписки не стоит игнориовать колосальную разницу среднего и медианного балансов пользователей (275 - 62 коинов), 
+это говорит о наличии активных пользователей на платформе с очень больним балансом, а значит выставлять стоимость подписки нужно опираясь на медианный баланс пользователя.
+
+__________________________________________________________________________________________________________________________________________________________________________________________
+
+Задание 3
+
+Расчет метрик активности пользователей на платформе:
+
+with t_action as (
+	select  
+		user_id, 
+		problem_id as cnt
+	from coderun c            
+	union
+	select                          
+		user_id, 
+		problem_id as cnt
+	from codesubmit c
+	where is_false = 1),
+t_action_2 as (
+	select count(*) as cnt
+	from t_action
+	group by user_id)
+select round(avg(cnt), 2) as avg_tasks
+from t_action_2 ta2
+
+
+avg_tasks|
+---------+
+     8.36|
+
+
+В среднем 8.36 задач пользователь решает на платформе
+
+_________________________________________________________________________________________________________________________________________________________________________________________
+         
+with  t_test as (
+	select count(distinct test_id) as cnt
+	from teststart t
+	group by user_id)
+select round(avg(cnt), 2) as avg_test
+from t_test tt
+
+
+avg_test|
+--------+
+    1.68|
+
+
+В среднем 1.68 тестов пользователь проходит на платформе
+
+_________________________________________________________________________________________________________________________________________________________________________________________
+       
+with t_attempts_task as (
+	select 
+		user_id, 
+		problem_id,
+		count(problem_id) as cnt
+	from codesubmit c
+	group by user_id, problem_id)
+select round(avg(cnt), 2) as avg_attempts_task
+from t_attempts_task tat
+
+
+avg_attempts_task|
+-----------------+
+             2.90|
+
+
+В среднем 2.9 попыток решения задач делает пользователь на платформе
+
+_________________________________________________________________________________________________________________________________________________________________________________________
+       
+with t_attempts_test as(
+	select
+		user_id,
+		test_id,
+		count(test_id) as cnt
+	from teststart t
+	group by user_id, test_id)
+select round(avg(cnt), 2) as avg_attempts_test
+from t_attempts_test tat
+
+
+avg_attempts_test|
+-----------------+
+             1.26|
+		
+
+В среднем 1.26 попыток прохождения тестов  в среднем делает пользователь на платформе
+
+_________________________________________________________________________________________________________________________________________________________________________________________
+
+with t_attempt_all as(
+	select user_id
+	from coderun c 
+	union
+	select user_id
+	from codesubmit c
+	union
+	select user_id
+	from teststart)
+select 
+	round(count(*)/(select count(*) from users)::numeric *100, 2) as persent_of_total_users
+	from t_attempt_all taa
+
+
+persent_of_total_users|
+----------------------+
+                 63.48|
+
+
+63.48% - доля пользователей от общего числа,которая решала хотя бы одну задачу или начинала проходить хотя бы один тест
+
+_________________________________________________________________________________________________________________________________________________________________________________________
+ 
+Информация по покупкам материалов на платформе за кодкоины - эти 6 чисел нужно вывести 1 запросом, чтобы было наглядно:
+
+with t_t as (
+	select 
+		t.user_id,
+		t2.type,
+		t2.description
+	from "transaction" t 
+	left join transactiontype t2
+	on t.type_id = t2.type)
+select 
+	count(distinct case when type = 23 then user_id else null end) as paid_task,
+	count(distinct case when type = 27 then user_id else null end) as paid_test,
+	count(distinct case when type = 24 then user_id else null end) as paid_help,
+	count(distinct case when type = 25 then user_id else null end) as paid_solution,
+	sum(case when type in (23, 24, 25,27) then 1 else null end) as paid_total,
+	count(distinct case when type in (23, 24, 25,27) then user_id else null end) as paid_in,
+	count (distinct user_id) as one_transaction
+from t_t tt
+
+
+paid_task|paid_test|paid_help|paid_solution|paid_total|paid_in|one_transaction|
+---------+---------+---------+-------------+----------+-------+---------------+
+      522|      676|       53|          151|      3205|   1139|           2402
+
+
+552 человек открывало задачи за кодкоины тип 23  20%
+676 человек открывало тесты за кодкоины   тип 27  24%
+53 человек открывало подсказки за кодкоины тип 24  2%
+151 человек открывало решения за кодкоины   тип 25  5%
+3205 Сколько подсказок/тестов/задач/решений было открыто за кодкоины (если задача/... открыта разными людьми, то это считаем разными фактами открытия) 118%
+1139 (23, 27, 24, 25) Сколько человек покупало хотя бы что-то из вышеперечисленного 40%
+2402 Сколько человек всего имеют хотя бы 1 транзакцию, пусть даже только начисление 85%
+
+
+На основании мониторинга активности пользователей, предлагаю:
+пересмотреть ценовую политику вознаграждений за активность на платформе в меньшую сторону;
+ввести ограничение на колиство бесплатного решения тестов и задач в день (например: 2шт);
+ввести общее ограничение на количество бесплатных тестов и задач за весь период пользования платформой (например: 30 задач и тестов раскрывающие основные темы);
+сделать платным разбор всех решений; 
+подсказки можно оставить в бесплатном доступе, для поддержания заинтересованности и проявления лояльности пользователей.
+
