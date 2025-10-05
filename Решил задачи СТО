@@ -1,0 +1,28 @@
+Кроме того, есть ещё одна небольшая задача. Технический директор (CTO) IT Resume хочет оценить, в какое время оптимально выпускать релизы (добавлять новый функционал на платформу). Для этого ему нужно знать:
+в какие дни люди чаще/реже всего проявляют активность на платформе
+в какое время люди чаще/реже всего решают задачи/проходят тесты на платформе
+
+с активным временем (
+ выберите created_at
+ из codesubmit
+ союз
+ выберите created_at
+ из coderun
+ союз
+ выберите created_at
+ из teststart)
+выберите 
+ distinct(to_char(created_at, 'HH24:00')) как час
+ count(case when to_char(created_at, 'dy') ='mon' then created_at else null end) as mond,
+ count(case when to_char(created_at, 'dy') ='tue' then created_at else null end) as tued,
+ count(case when to_char(created_at, 'dy') ='wed' then created_at else null end) as wedd,
+ count(case when to_char(created_at, 'dy') ='thu' then created_at else null end) as thud,
+ count(case when to_char(created_at, 'dy') ='fri' then created_at else null end) as frid,
+ count(case when to_char(created_at, 'dy') ='sat' then created_at else null end) as satd,
+ count(case when to_char(created_at, 'dy') ='sun' then created_at else null end) as sund
+из active_time
+группировка по часам
+заказ по часам
+
+Рекомендуемое время для проведения релизов в будние дни — до 6:00, в выходные — до 9:00
+Период активности на платформе в будние дни, с 06:00 до 21:00, в выходные дни значительно сокращается и приходится на интервал с 9:00 до 21:00.
