@@ -279,6 +279,50 @@ ORDER BY count_purchases DESC;
 
 
 
+#### Дополнительное задание 2
+
+
+
+Я не владею Python, и его изучение не входило в мою учебную программу. Поэтому построить график с его помощью я не смогу. Но на основании запроса SQL я попробовала проанализировать интересующие нас показатели и сделать выводы.
+
+Анализ суммарной активности из таблиц coderun, codesubmit и teststart, показывает периоды минимальной нагрузки на сервис. 
+
+
+
+```sql
+
+SELECT 
+    CASE 
+        WHEN EXTRACT(ISODOW FROM created_at) = 1 THEN '1. Понедельник'
+        WHEN EXTRACT(ISODOW FROM created_at) = 2 THEN '2. Вторник'
+        WHEN EXTRACT(ISODOW FROM created_at) = 3 THEN '3. Среда'
+        WHEN EXTRACT(ISODOW FROM created_at) = 4 THEN '4. Четверг'
+        WHEN EXTRACT(ISODOW FROM created_at) = 5 THEN '5. Пятница'
+        WHEN EXTRACT(ISODOW FROM created_at) = 6 THEN '6. Суббота'
+        WHEN EXTRACT(ISODOW FROM created_at) = 7 THEN '7. Воскресенье'
+    END AS day_name,
+    EXTRACT(HOUR FROM created_at) AS hour_of_day,
+    COUNT(*) AS total_actions
+FROM (
+    SELECT created_at FROM coderun
+    UNION ALL
+    SELECT created_at FROM codesubmit
+    UNION ALL
+    SELECT created_at FROM teststart
+) AS all_actions
+GROUP BY 1, 2
+ORDER BY total_actions
+LIMIT 10;
+
+
+
+```
+
+Выводы: 
+•Идеальное окно: Глубокая ночь воскресенья (01:00 – 03:00). В эти часы нагрузка составляет всего 5–6 активностей в час.
+•Альтернативы: В субботу в 02:00 ночи нагрузка также невелика — 11 действий.
+Рекомендация: При наличии круглосуточной поддержки, наиболее безопасным временем для релиза является ночь с субботы на воскресенье в 01:00–03:00. Это момент абсолютного минимума пользовательской активности. 
+
 
 
 
