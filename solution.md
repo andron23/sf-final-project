@@ -359,3 +359,124 @@ ORDER BY uc.cohort;
 --Снизить зависимость от продажи пакетов монет, которая неэффективна (средние списания – всего 27 монет).
 --Улучшить прогнозируемость доходов – регулярные платежи дают стабильный денежный поток.
 --При этом базовый функционал останется бесплатным, что сохранит приток новых пользователей.
+
+--Дополнительное задание 2 (для CTO)
+--Для выгрузки данных используем SQL-запрос:
+
+-- Выгружаем все активности пользователей: входы, запуски кода, проверки и старты тестов
+SELECT 
+    'entry' AS activity_type, 
+    entry_at AS activity_time 
+FROM userentry
+
+UNION ALL
+
+SELECT 
+    'coderun' AS activity_type, 
+    created_at AS activity_time 
+FROM coderun
+
+UNION ALL
+
+SELECT 
+    'codesubmit' AS activity_type, 
+    created_at AS activity_time 
+FROM codesubmit
+
+UNION ALL
+
+SELECT 
+    'teststart' AS activity_type, 
+    created_at AS activity_time 
+FROM teststart
+ORDER BY activity_time;
+
+--Для загрузки данных, построения графиков и выводов используем Python-код:
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+
+# 1. Загрузка данных из CSV
+df = pd.read_csv('activities.csv', parse_dates=['activity_time'])
+
+# 2. Извлечение дня недели (0=понедельник, 6=воскресенье) и часа
+#    Для удобства переименуем дни недели на русские названия
+days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+df['weekday'] = df['activity_time'].dt.weekday  # 0-6
+df['hour'] = df['activity_time'].dt.hour
+df['weekday_name'] = df['weekday'].map(lambda x: days[x])
+
+# 3. Базовая статистика по дням недели
+weekday_counts = df.groupby('weekday_name').size().reindex(days)
+print("Количество активностей по дням недели:")
+print(weekday_counts)
+
+# 4. Построение тепловой карты (день недели × час)
+#    Создаём сводную таблицу: строки – дни, столбцы – часы
+pivot = df.pivot_table(
+    index='weekday_name', 
+    columns='hour', 
+    values='activity_time', 
+    aggfunc='count', 
+    fill_value=0
+)
+# Упорядочиваем дни по порядку
+pivot = pivot.reindex(days)
+
+# 5. Визуализация
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+# Тепловая карта
+sns.heatmap(pivot, cmap='YlOrRd', annot=False, ax=axes[0], cbar_kws={'label': 'Количество активностей'})
+axes[0].set_title('Тепловая карта активностей\n(день недели × час)')
+axes[0].set_xlabel('Час суток')
+axes[0].set_ylabel('День недели')
+
+# Гистограмма по дням недели
+weekday_counts.plot(kind='bar', ax=axes[1], color='skyblue', edgecolor='black')
+axes[1].set_title('Активность по дням недели')
+axes[1].set_xlabel('День недели')
+axes[1].set_ylabel('Количество активностей')
+axes[1].set_xticklabels(days, rotation=0)
+
+plt.tight_layout()
+plt.savefig('activity_analysis.png', dpi=150)
+plt.show()
+
+# 6. Дополнительно: гистограмма по часам (для наглядности)
+plt.figure(figsize=(12, 5))
+hour_counts = df.groupby('hour').size()
+hour_counts.plot(kind='bar', color='lightgreen', edgecolor='black')
+plt.title('Активность по часам суток (все дни)')
+plt.xlabel('Час')
+plt.ylabel('Количество активностей')
+plt.xticks(range(0, 24))
+plt.tight_layout()
+plt.savefig('activity_by_hour.png', dpi=150)
+plt.show()
+
+# 7. Определяем периоды минимальной активности
+#    - День недели с наименьшей суммарной активностью
+min_day = weekday_counts.idxmin()
+min_day_count = weekday_counts.min()
+#    - Час с наименьшей активностью (в среднем по всем дням)
+min_hour = hour_counts.idxmin()
+min_hour_count = hour_counts.min()
+
+print(f"\nНаименьшая активность по дням недели: {min_day} ({min_day_count} событий)")
+print(f"Наименьшая активность по часам: {min_hour}:00 ({min_hour_count} событий)")
+print("\nРекомендуемое время для релиза: {} в {}:00".format(
+    'ночь с воскресенья на понедельник' if min_day == 'Вс' else min_day,
+    min_hour
+))
+
+--Выводы:
+--Рекомендую проводить релизы в ночь с воскресенья на понедельник, в 2:00 по местному времени (MSK), потому что:
+--Воскресенье – день с наименьшей активностью пользователей (всего 286 событий). Пользователи отдыхают, что минимизирует риск негативного влияния релиза на их работу.
+--2:00 ночи – час с минимальной активностью (всего 17 событий). В это время подавляющее большинство пользователей спит, и даже если возникнут проблемы, они будут замечены минимальным числом людей.
+--Ночь с воскресенья на понедельник даёт команде достаточно времени до начала рабочей недели, чтобы оперативно исправить критические ошибки, если они возникнут, и подготовиться к пиковой нагрузке в понедельник утром.
+--Альтернативный вариант (если релиз требует присутствия команды) – вторник, 8:00–9:00, когда активность начинает расти, но ещё не достигает пика. Однако ночное время остаётся более безопасным.
+--Следует избегать проведения релизов в вечерние часы будних дней (19:00–22:00), так как это пик активности пользователей (решение задач, прохождение тестов). В случае сбоев это может привести к массовым негативным впечатлениям и потере пользователей.
+
