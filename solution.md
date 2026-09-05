@@ -304,3 +304,128 @@ avg_attempts_before_buying_help	  median_attempts_before_buying_help
 2. На основе медианы, идеальная точка коммерческого контакта — это 4-я или 5-я неудачная попытка подряд.
 3. «Базовый тариф» избавит пользователя от необходимости платить за каждую подсказку отдельно и уберет этот стресс.
 4. В бесплатной версии можно ввести ограничение: например, не более 5 попыток на задачу в час.
+
+Дополнительное задание 2.
+--Для выгрузки данных используем SQL-запрос:
+
+WITH user_activities AS (
+    SELECT 
+        id AS event_id,
+        user_id,
+        created_at AS activity_time, 
+        'code_submit' AS activity_type
+    FROM codesubmit
+    
+    UNION ALL
+    SELECT 
+        id AS event_id,
+        user_id,
+        created_at AS activity_time, 
+        'test_start' AS activity_type
+    FROM teststart
+)
+SELECT 
+    activity_time,
+    EXTRACT(ISODOW FROM activity_time) AS day_of_week,
+    -- Название дня недели для удобства
+    TO_CHAR(activity_time, 'Day') AS day_name,
+    -- Экстракция часа суток (0-23)
+    EXTRACT(HOUR FROM activity_time) AS activity_hour,
+    activity_type
+FROM user_activities
+WHERE activity_time IS NOT NULL;
+
+--Для загрузки данных, построения графиков и выводов используем Python:
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+
+df = pd.read_csv('user_activity.csv', sep=None, engine='python')
+df.rename(columns={df.columns[0]: 'activity_time'}, inplace=True)
+df = df[df['activity_time'].astype(str).str.contains(r'\d', na=False)].copy()
+
+df['activity_time'] = pd.to_datetime(df['activity_time'], errors='coerce')
+
+# Удаляем пустые строки
+df = df.dropna(subset=['activity_time'])
+
+# Извлечение дня недели 
+# ТЕПЕРЬ .dt ДЛЯ ДАТ СРАБОТАЕТ БЕЗ ОШИБОК
+days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+df['weekday'] = df['activity_time'].dt.weekday  # 0-6
+df['hour'] = df['activity_time'].dt.hour
+df['weekday_name'] = df['weekday'].map(lambda x: days[x])
+
+# Базовая статистика по дням недели
+weekday_counts = df.groupby('weekday_name').size().reindex(days)
+print("Количество активностей по дням недели:")
+print(weekday_counts)
+
+# Построение тепловой карты (день недели × час)
+pivot = df.pivot_table(
+    index='weekday_name',
+    columns='hour',
+    values='activity_time',
+    aggfunc='count',
+    fill_value=0
+)
+pivot = pivot.reindex(days)
+
+# Визуализация: тепловая карта и общая активность по дням
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+# Левый график: Тепловая карта
+sns.heatmap(pivot, cmap='YlOrRd', annot=False, ax=axes[0], cbar_kws={'label': 'Количество активностей'})
+axes[0].set_title('Тепловая карта активностей\n(день недели × час)', fontsize=12, fontweight='bold')
+axes[0].set_xlabel('Час суток')
+axes[0].set_ylabel('День недели')
+
+# Правый график: Распределение по дням недели
+weekday_counts.plot(kind='bar', ax=axes[1], color='skyblue', edgecolor='black')
+axes[1].set_title('Активность по дням недели', fontsize=12, fontweight='bold')
+axes[1].set_xlabel('День недели')
+axes[1].set_ylabel('Количество активностей')
+axes[1].set_xticklabels(days, rotation=0)
+
+plt.tight_layout()
+plt.savefig('activity_analysis.png', dpi=150)
+plt.show()
+
+# Дополнительно: гистограмма активности по часам суток
+plt.figure(figsize=(12, 5))
+hour_counts = df.groupby('hour').size()
+hour_counts.plot(kind='bar', color='lightgreen', edgecolor='black')
+plt.title('Активность по часам суток (все дни)', fontsize=12, fontweight='bold')
+plt.xlabel('Час')
+plt.ylabel('Количество активностей')
+plt.xticks(range(0, 24))
+plt.tight_layout()
+plt.savefig('activity_by_hour.png', dpi=150)
+plt.show()
+
+# расчет периодов минимальной нагрузки
+min_day = weekday_counts.idxmin()
+min_day_count = weekday_counts.min()
+
+min_hour = hour_counts.idxmin()
+min_hour_count = hour_counts.min()
+
+print(f"\nНаименьшая активность по дням недели: {min_day} ({min_day_count} событий)")
+print(f"Наименьшая активность по часам: {min_hour}:00 ({min_hour_count} событий)")
+print("\nРекомендуемое время для технического обслуживания/релиза: {} в {}:00".format(
+    'ночь с воскресенья на понедельник' if min_day == 'Вс' else min_day,
+    min_hour
+))
+
+ВЫВОДЫ:
+1. Пиковая активность (Чаще всего): Вторник, Среда и Четверг. Пользователи максимально мотивированы, решают задачи в рамках учебы. 
+   На эти 3 дня приходится основной объем трафика.Суббота — абсолютный минимум активности на платформе. Люди предпочитают отдыхать от компьютера. 
+   В Пятницу вечер активность также резко падает. В Воскресенье начинается плавный подъем (пользователи «вспоминают» про долги по учебе перед новой неделей),
+   но он все еще значительно ниже будних дней.
+2. Пиковые часы (Больше всего): Дневной пик (11:00 — 14:00). Вечерний пик (18:00 — 21:00). Часы затишья (Меньше всего):Глубокая ночь и утро (02:00 — 05:00).
+3. Релизы и технические работы (требуют кратковременного отключения серверов или могут вызвать баги) нельзя проводить в пиковые часы, чтобы не портить пользовательский опыт.
+4. Идеальные окна для релизов: 
+   - Ночь с субботы на воскресенье (с 03:00 до 05:00 утра).Суббота — день минимальной активности за всю неделю. К 3 часам ночи трафик падает и сбои затронут наименьшее число активных пользователей.  
+   - Пятница (поздний вечер/ночь) (с 02:00 до 04:00 утра). Пятничный трафик быстро угасает к вечеру. Ночной релиз оставляет субботу на исправление критических багов до прихода новой волны пользователей. 
