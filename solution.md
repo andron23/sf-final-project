@@ -244,3 +244,129 @@ from purchases;
 
 Я считаю, рассчитанные метрики показывают достаточно высокую конверсию среди активрных пользователей к покупкам. В частности, для уменьшения разрыва между покупаками готовых решений и подсказок, можно сделать платными именно решения, а подсказки сделать условно бесплатными. Что должно дополнительно стимулировать пользователей дойти до решения "своей головой".
 
+
+#### Дополнительное задание 2
+
+Решил разбить задачу на два SQL-запроса.
+
+1. Распределение активности по дням недели
+
+Этот запрос покажет, в какие дни недели пользователи платформы наиболее и наименее активны. Дни отсортированы от самых разгруженных к самым пиковым.
+
+```sql
+with all_actions as (
+	select created_at from coderun
+	union all
+	select created_at from codesubmit
+	union all
+	select created_at from teststart
+)
+select 
+	extract(isodow from created_at) as day_of_week_num,	
+	case extract(isodow from created_at)
+		when 1 then '1. Понедельник'
+		when 2 then '2. Вторник'
+		when 3 then '3. Среда'
+		when 4 then '4. Четверг'
+		when 5 then '5. Пятница'
+		when 6 then '6. Суббота'
+		when 7 then '7. Воскресенье'
+	end as day_of_week,
+	count(*) as total_actions,	
+	round((count(*)::numeric / sum(count(*)) over ()) * 100, 2) as "traffic_share, %"
+from all_actions
+group by extract(isodow from created_at)
+order by total_actions asc;
+```
+
+Рекомендации для CTO: Ищите день в самом верху списка. В нашем случае - суббота и воскресенье, когда люди реже всего садятся за учебу. Это лучшие дни для крупных релизов.
+
+2. Распределение активности по часам суток
+
+Этот запрос детализирует нагрузку до конкретного часа (от 0 до 23). Он поможет определить точные часы для ночных или утренних технических работ.
+
+```sql
+with all_actions as (
+	select created_at from coderun
+	union all
+	select created_at from codesubmit
+	union all
+	select created_at from teststart
+)
+select 
+	extract(hour from created_at) as hour_of_day,
+	count(*) as total_actions,
+	round((count(*)::numeric / sum(count(*)) over ()) * 100, 2) as "traffic_share, %"
+from all_actions
+group by extract(hour from created_at)
+order by total_actions asc;
+```
+
+Рекомендации для CTO: Первые 3–4 строчки результата покажут идеальное «релизное окно» (минимальный процент трафика). В нашем случае это интервал с 00:00 до 03:00 утра по серверному времени платформы.
+Чтобы получить максимальную безопасность, СТО стоит совместить оба отчета. Идеальная точка для релиза — самый верхний (свободный) день недели из первого отчета, запущенный в самый верхний (тихий) час из второго отчета (например, в субботу в 04:00 утра).
+
+3. А вот для для визуализации данных я посчитал нужным выгрузить всего один сырой CSV-файл со всеми фактами активности, а уже средствами Python разложить его на нужные графики. Так мы не рискуем потерять важную аналитическую глубину.
+
+Для выгрузки данных используем SQL-запрос:
+
+```sql
+select created_at 
+from coderun
+union all
+select created_at from codesubmit
+union all
+select created_at from teststart;
+```
+
+Для загрузки данных и построения графиков используем такой код:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. Загружаем данные из одного CSV-файла
+# Предполагаем, что колонка называется 'created_at'
+df = pd.read_csv('platform_activity.csv', parse_dates=['created_at'])
+
+# 2. Вытаскиваем день недели и час средствами Python
+df['day_of_week'] = df['created_at'].dt.day_name()
+df['day_of_week_num'] = df['created_at'].dt.dayofweek # 0=Понедельник, 6=Воскресенье
+df['hour'] = df['created_at'].dt.hour
+
+# Сортируем дни недели по порядку для графиков
+days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+# График 1: Распределение по дням недели
+plt.figure(figsize=(10, 5))
+sns.countplot(data=df, x='day_of_week', order=days_order, hue='day_of_week', palette='viridis', legend=False)
+plt.title('Активность на платформе по дням недели')
+plt.xlabel('День недели')
+plt.ylabel('Количество действий')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+# График 2: Распределение по часам суток
+plt.figure(figsize=(12, 5))
+sns.countplot(data=df, x='hour', hue='hour', palette='magma', legend=False)
+plt.title('Активность на платформе по часам суток')
+plt.xlabel('Час суток (0-23)')
+plt.ylabel('Количество действий')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+# График 3: Тепловая карта нагрузки
+# Группируем данные в матрицу День x Час
+pivot_table = df.groupby(['day_of_week', 'hour']).size().unstack(fill_value=0)
+pivot_table = pivot_table.reindex(days_order)
+
+plt.figure(figsize=(14, 7))
+sns.heatmap(pivot_table, cmap='YlOrRd', annot=False)
+plt.title('Тепловая карта активности: идеальное время для релизов (ищите самые светлые зоны)')
+plt.xlabel('Час суток')
+plt.ylabel('День недели')
+plt.show()
+```
+
+Выводы: В ходе анализа результатов SQL-запросов и построенных визуализаций, могу рекомендовать проводить релизы в период с 00 до 03 часов в любой день, независимо от дня недели (предпочтительно - суббота и воскресенье), потому что в указанные периоды времени и дни недели наблюдается наименьшая активность пользователей.
+
