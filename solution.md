@@ -32,3 +32,29 @@ order by yw;
 По результатам расчета Rolling Retention видно, что активность пользователей со временем снижается. Основной отток происходит в течение первого месяца после регистрации, после чего доля активных пользователей становится значительно ниже.
 **Это показывает, что месячная подписка может стать основным тарифом.**
 При этом часть пользователей продолжает пользоваться платформой длительное время, из этого мне кажется имеет смысл добавить долгосрочную подписку на 6 или 12 месяцев.
+
+**Задание 2**
+WITH user_balance AS (
+SELECT
+        user_id,
+        SUM(CASE WHEN type_id = 1 THEN value ELSE 0 END) AS spent_coins,
+        SUM(CASE WHEN type_id <> 1 THEN value ELSE 0 END) AS accrued_coins,
+        SUM(CASE
+                WHEN type_id <> 1 THEN value
+                ELSE -value
+            END) AS balance
+    FROM transaction
+    GROUP BY user_id
+)
+SELECT
+    ROUND(AVG(spent_coins), 2) AS avg_spent_coins_per_user,
+    ROUND(AVG(accrued_coins), 2) AS avg_accrued_coins_per_user,
+    ROUND(AVG(balance), 2) AS avg_balance,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY balance) AS median_balance
+FROM user_balance;
+**Выводы:** 
+Среднее количество начисляемых коинов на пользователя составляет-337,6
+Среднее количество списываемых коинов-0,21
+Средний баланс пользователя составляет-337,4 коина
+Медианный баланс равен 103 коинам.
+Это показывает нам, что большинство пользователей накапливают коины быстрее, чем тратят их
