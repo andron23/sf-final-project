@@ -58,3 +58,48 @@ FROM user_balance;
 Средний баланс пользователя составляет-337,4 коина
 Медианный баланс равен 103 коинам.
 Это показывает нам, что большинство пользователей накапливают коины быстрее, чем тратят их
+**Задание 3**
+WITH task_stats AS (
+    select user_id, COUNT(DISTINCT problem_id) AS tasks_count, COUNT(*)::numeric / COUNT(DISTINCT problem_id) AS attempts_per_task
+    FROM codesubmit
+    GROUP BY user_id ),test_stats AS (
+    select user_id, COUNT(DISTINCT test_id) AS tests_count, COUNT(*)::numeric / COUNT(DISTINCT test_id) AS attempts_per_test
+    FROM teststart
+    GROUP BY user_id
+)
+SELECT
+    (SELECT ROUND(AVG(tasks_count), 2) FROM task_stats) AS avg_tasks_per_user,
+    (SELECT ROUND(AVG(tests_count), 2) FROM test_stats) AS avg_tests_per_user,
+    (SELECT ROUND(AVG(attempts_per_task), 2) FROM task_stats) AS avg_attempts_per_task,
+    (SELECT ROUND(AVG(attempts_per_test), 2) FROM test_stats) AS avg_attempts_per_test,(
+        SELECT ROUND(
+            COUNT(DISTINCT user_id) * 100.0 /
+            (SELECT COUNT(*) FROM users),
+            2
+        )
+        FROM (
+            SELECT user_id FROM codesubmit
+            UNION
+            SELECT user_id FROM teststart
+        ) active
+    ) AS active_users_percent;
+**Выводы:**
+Результаты расчета метрик активности пользователей:
+В среднем пользователь решает 9,52 задачи.
+В среднем пользователь проходит 1,68 теста.
+В среднем пользователь делает 3,17 попытки для решения одной задачи.
+В среднем пользователь делает 1,15 попытки для прохождения одного теста.
+Дополнительно было установлено, что 61,97% пользователей хотя бы один раз решали задачу или проходили тест.
+**Дополнительное задание**
+Я бы предложила посчитать среднее количество транзакций на пользователя
+
+SELECT
+    ROUND(AVG(transaction_count), 2) AS avg_transactions_per_user
+FROM (
+    SELECT
+        user_id,
+        COUNT(*) AS transaction_count
+    FROM transaction
+    GROUP BY user_id
+) t;
+Она позволяет понять, насколько активно пользователи взаимодействуют с системой кодкоинов.
