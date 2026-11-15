@@ -86,3 +86,115 @@ FROM balances;
 4.	Покрытие транзакциями. 86.6% пользователей (2402 из 2774) имеют хотя бы одну транзакцию; 13.4% — ни одной (вероятно, «мёртвые» регистрации или технические аккаунты).
 5.	Аномалия. Минимальный баланс = −89 коинов (уход в минус) — edge-case, требующий проверки (баг, возврат или списание без баланса).
 6.	Влияние на стоимость подписки. Учитывая медианный баланс 56 коинов и низкую интенсивность трат, текущая стоимость коинов не является ориентиром для подписки. Подписку стоит позиционировать как доступ к премиум-функциям (топовые задачи, кейсы, вопросы), а не как «пакет коинов». Цену подписки разумно привязать к медианному балансу (56 коинов ≈ 56 руб.) как к «нижней границе», а среднему (238) — как к «верхней» для сегмента активных.
+
+   ## Задание 3
+
+### Блок A — метрики активности
+
+```sql
+WITH users_total AS (
+    SELECT COUNT(*) AS cnt FROM users
+),
+user_tasks AS (
+    SELECT user_id,
+           COUNT(DISTINCT problem_id) AS tasks_solved,
+           COUNT(*)                   AS submit_attempts
+    FROM codesubmit
+    GROUP BY user_id
+),
+user_tests AS (
+    SELECT user_id,
+           COUNT(DISTINCT test_id) AS tests_started,
+           COUNT(*)                AS test_attempts
+    FROM teststart
+    GROUP BY user_id
+),
+active_users AS (
+    SELECT user_id FROM codesubmit WHERE is_false = 0
+    UNION
+    SELECT user_id FROM teststart
+)
+SELECT
+    ROUND((SELECT AVG(tasks_solved)::numeric FROM user_tasks), 2)       AS avg_tasks_per_user,
+    ROUND((SELECT AVG(tests_started)::numeric FROM user_tests), 2)      AS avg_tests_per_user,
+    ROUND((SELECT SUM(submit_attempts)::numeric / NULLIF(SUM(tasks_solved), 0) FROM user_tasks), 2) AS avg_attempts_per_task,
+    ROUND((SELECT SUM(test_attempts)::numeric / NULLIF(SUM(tests_started), 0) FROM user_tests), 2) AS avg_attempts_per_test,
+    ROUND((SELECT COUNT(*)::numeric FROM active_users) / (SELECT cnt FROM users_total), 4) AS share_active_users;
+```
+
+Результат: `9.52 | 1.68 | 2.90 | 1.26 | 0.5905`
+
+### Блок B — покупки за кодкоины
+
+```sql
+WITH purchases AS (
+    SELECT t.user_id, t.type_id, COUNT(*) AS cnt
+    FROM transaction t
+    WHERE t.type_id IN (23,24,25,26,27,28)
+    GROUP BY t.user_id, t.type_id
+),
+by_category AS (
+    SELECT
+        COUNT(DISTINCT user_id) FILTER (WHERE type_id = 23)          AS users_bought_tasks,
+        COUNT(DISTINCT user_id) FILTER (WHERE type_id IN (26,27,28)) AS users_bought_tests,
+        COUNT(DISTINCT user_id) FILTER (WHERE type_id = 24)          AS users_bought_hints,
+        COUNT(DISTINCT user_id) FILTER (WHERE type_id = 25)          AS users_bought_solutions,
+        SUM(cnt) FILTER (WHERE type_id = 23)                         AS facts_tasks,
+        SUM(cnt) FILTER (WHERE type_id IN (26,27,28))                AS facts_tests,
+        SUM(cnt) FILTER (WHERE type_id = 24)                         AS facts_hints,
+        SUM(cnt) FILTER (WHERE type_id = 25)                         AS facts_solutions
+    FROM purchases
+),
+totals AS (
+    SELECT COUNT(DISTINCT user_id) AS users_bought_any, SUM(cnt) AS facts_total
+    FROM purchases
+),
+users_with_tx AS (
+    SELECT COUNT(DISTINCT user_id) AS users_tx FROM transaction
+)
+SELECT
+    b.users_bought_tasks,
+    b.users_bought_tests,
+    b.users_bought_hints,
+    b.users_bought_solutions,
+    (COALESCE(b.facts_tasks,0) + COALESCE(b.facts_tests,0) + COALESCE(b.facts_hints,0) + COALESCE(b.facts_solutions,0)) AS facts_open_total,
+    t.users_bought_any,
+    u.users_tx
+FROM by_category b
+CROSS JOIN totals t
+CROSS JOIN users_with_tx u;
+```
+
+Результат: `522 | 676 | 53 | 151 | 3205 | 1139 | 2402`
+
+**Выводы:**
+Активность
+Задачи — ядро продукта. Средний активный пользователь решает 9.5 задач, но проходит лишь 1.7 теста (разница в 5.7 раза). Тесты — второстепенный функционал с низкой вовлечённостью.
+
+Задачи требуют усилий. В среднем 2.9 попытки на одну задачу (сабмиты «Проверить»). Это естественная «боль» пользователя — хороший рычаг для монетизации: ограничение числа попыток в бесплатной версии (например, 3–5 бесплатно, дальше подписка).
+
+Тесты проходят «с первого раза» (1.26 попытки) — низкая вовлечённость, люди не возвращаются.
+
+59% пользователей активны (решали задачу или начинали тест); 41% — «мёртвая» аудитория. Целевая аудитория подписки — эти 59%.
+
+Покупки за коины
+Тесты покупают чаще задач (676 vs 522 человек), хотя решают их реже. Парадокс: тесты — «разовые» покупки, задачи люди решают бесплатно.
+
+Подсказки — самая непопулярная покупка (53 человека). Плохой кандидат в платную подписку; хороший — в бесплатную (как «завлекалочка»).
+
+Решения покупают 151 человек — умеренный спрос.
+
+1139 из 2402 транзакционных пользователей (47.4%) хоть раз что-то покупали; 52.6% — только получали начисления, ничего не тратили. Подтверждает проблему: половина пользователей не тратит коины.
+
+3205 фактов открытия на 1139 покупателей = ~2.8 покупки на покупателя — есть «активные покупатели», ядро платящей аудитории.
+
+Что включать в подписку
+Задачи — основа (высокая активность, 522 покупателя). В бесплатной версии — ограниченное число задач/попыток; в подписке — безлимит + топовые задачи от компаний.
+
+Тесты — в подписку как «премиум-контент» (676 покупателей — самый высокий спрос на покупку), но не как основную ценность.
+
+Подсказки — в бесплатную версию (низкий спрос, 53 человека), как «завлекалочка».
+
+Решения — в подписку (151 покупатель, умеренный спрос) как «премиум-функция».
+
+Ограничение попыток (2.9 в среднем) — естественный рычаг: 3–5 бесплатных попыток, дальше подписка.
