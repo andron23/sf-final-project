@@ -198,3 +198,107 @@ CROSS JOIN users_with_tx u;
 Решения — в подписку (151 покупатель, умеренный спрос) как «премиум-функция».
 
 Ограничение попыток (2.9 в среднем) — естественный рычаг: 3–5 бесплатных попыток, дальше подписка.
+
+## Дополнительное задание
+
+Мне кажется, для решения вопросов IT Resume (срок, цена, состав подписки) полезны три метрики, которые показывают «платёжеспособность» аудитории, «точку боли» и «окно вовлечённости». Для этого я предлагаю посчитать:
+
+Метрика 1. Доля пользователей, чей баланс позволяет купить хотя бы одну задачу
+Почему полезна:
+
+Показывает, насколько текущая модель монетизации эффективна: если у большинства баланс достаточный — люди покупают без реальных денег.
+
+Обосновывает цену подписки: если 77% могут купить за коины, подписка должна давать то, чего за коины не купить.
+
+Показывает потенциал «докупания» коинов для тех, у кого баланса не хватает.
+
+Код:
+
+sql
+WITH user_balance AS (
+    SELECT u.id,
+           COALESCE(SUM(CASE WHEN t.type_id NOT IN (1,23,24,25,26,27,28,30) THEN t.value ELSE 0 END), 0)
+         - COALESCE(SUM(CASE WHEN t.type_id IN (1,23,24,25,26,27,28,30) THEN t.value ELSE 0 END), 0) AS balance
+    FROM users u
+    LEFT JOIN transaction t ON t.user_id = u.id
+    GROUP BY u.id
+),
+task_price AS (
+    SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value) AS median_task_price
+    FROM transaction WHERE type_id = 23
+)
+SELECT
+    (SELECT median_task_price FROM task_price) AS median_task_price,
+    COUNT(*) FILTER (WHERE balance >= (SELECT median_task_price FROM task_price)) AS users_can_afford,
+    COUNT(*) AS users_total,
+    ROUND(COUNT(*) FILTER (WHERE balance >= (SELECT median_task_price FROM task_price))::numeric / COUNT(*), 4) AS share_can_afford
+FROM user_balance;
+Выводы: медианная цена задачи — 30 коинов; 77% пользователей (2136 из 2774) имеют баланс ≥ 30, то есть могут покупать, не тратя реальные деньги. Это подтверждает неэффективность текущей модели: большинство живёт на бесплатных начислениях. Подписка должна давать то, чего за коины не купить (безлимит, топовые задачи, разделы), иначе она не нужна.
+
+Метрика 2. После скольких попыток люди бросают задачу, не решив
+Почему полезна:
+
+Показывает «точку боли» — момент, когда пользователь сдаётся.
+
+Напрямую обосновывает состав подписки: ограничение числа попыток как рычаг монетизации.
+
+Помогает выбрать оптимальный лимит бесплатных попыток (3–5).
+
+Код:
+
+sql
+WITH per_task_user AS (
+    SELECT user_id, problem_id,
+           COUNT(*) AS attempts,
+           MAX(CASE WHEN is_false = 0 THEN 1 ELSE 0 END) AS solved
+    FROM codesubmit
+    GROUP BY user_id, problem_id
+)
+SELECT
+    CASE
+        WHEN attempts = 1 THEN '1 попытка'
+        WHEN attempts BETWEEN 2 AND 3 THEN '2-3 попытки'
+        WHEN attempts BETWEEN 4 AND 5 THEN '4-5 попыток'
+        ELSE '6+ попыток'
+    END AS attempts_bucket,
+    COUNT(*) FILTER (WHERE solved = 0) AS unsolved_cases,
+    COUNT(*) AS total_cases,
+    ROUND(COUNT(*) FILTER (WHERE solved = 0)::numeric / COUNT(*), 4) AS share_unsolved
+FROM per_task_user
+GROUP BY attempts_bucket
+ORDER BY attempts_bucket;
+Выводы: 78.5% случаев — 1–3 попытки; доля бросивших растёт с числом попыток (7.6% → 14.0% на 6+). Ограничение в 3–5 попыток — разумный рычаг: большинство укладывается, а «упорные» (6+) — целевая аудитория подписки. Слишком жёсткий лимит (1 попытка) отпугнёт.
+
+Метрика 3. Когда происходит первая покупка за коины
+Почему полезна:
+
+Обосновывает срок подписки: если пик покупок — день регистрации, краткосрочная подписка имеет смысл.
+
+Показывает окно вовлечённости для маркетинга (продажа подписки в первый день).
+
+Помогает понять, «сгорают» ли люди быстро или возвращаются.
+
+Код:
+
+sql
+WITH first_purchase AS (
+    SELECT t.user_id, MIN(t.created_at) AS first_purchase_at
+    FROM transaction t
+    WHERE t.type_id IN (23,24,25,26,27,28)
+    GROUP BY t.user_id
+)
+SELECT
+    CASE
+        WHEN DATE(fp.first_purchase_at) - DATE(u.date_joined) = 0 THEN 'в день регистрации'
+        WHEN DATE(fp.first_purchase_at) - DATE(u.date_joined) BETWEEN 1 AND 7 THEN '1-7 дней'
+        WHEN DATE(fp.first_purchase_at) - DATE(u.date_joined) BETWEEN 8 AND 14 THEN '8-14 дней'
+        WHEN DATE(fp.first_purchase_at) - DATE(u.date_joined) BETWEEN 15 AND 30 THEN '15-30 дней'
+        ELSE '30+ дней'
+    END AS days_bucket,
+    COUNT(*) AS users_cnt,
+    ROUND(COUNT(*)::numeric / SUM(COUNT(*)) OVER (), 4) AS share
+FROM first_purchase fp
+JOIN users u ON u.id = fp.user_id
+GROUP BY days_bucket
+ORDER BY days_bucket;
+Выводы: 83.4% первых покупок — в день регистрации. Дальше резкий спад: 9% в первую неделю, единицы позже. Пик вовлечённости — день регистрации — идеальное окно для продажи подписки (пробный период, скидка на первый месяц). Недельная подписка имеет смысл; годовая — только для ядра (4% покупают после 30 дней).
